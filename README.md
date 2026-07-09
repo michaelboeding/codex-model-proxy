@@ -460,6 +460,33 @@ curl -s http://127.0.0.1:8000/admin/model \
   -d '{"model":"opus"}'
 ```
 
+## Reasoning Effort
+
+Codex sends reasoning settings in the Responses request. The proxy translates those settings into Claude Code's `--effort` flag.
+
+Mapping:
+
+| Codex setting | Claude CLI effort |
+| --- | --- |
+| `minimal` | `low` |
+| `light` / `low` | `low` |
+| `medium` | `medium` |
+| `high` | `high` |
+| `extra high` / `xhigh` | `xhigh` |
+| `max` | `max` |
+
+For example, if the Codex app reasoning selector is changed from High to Minimal, the next proxied request should invoke Claude Code with:
+
+```bash
+--effort low
+```
+
+If it is changed to Extra High, the proxy should invoke:
+
+```bash
+--effort xhigh
+```
+
 ## Optional MCP Control Server
 
 The repo ships a local stdio MCP server. It does not replace the Responses proxy; it gives Codex tools for controlling the local proxy while Codex is running.

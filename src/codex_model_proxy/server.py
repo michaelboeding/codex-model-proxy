@@ -104,10 +104,12 @@ class ModelCatalog:
             "description": self.provider.catalog_description,
             "default_reasoning_level": "high",
             "supported_reasoning_levels": [
+                {"effort": "minimal", "description": "Minimal reasoning, mapped to Claude low effort"},
                 {"effort": "low", "description": "Fast responses with lighter reasoning"},
                 {"effort": "medium", "description": "Balanced reasoning for everyday tasks"},
                 {"effort": "high", "description": "Deeper reasoning for complex tasks"},
                 {"effort": "xhigh", "description": "Extra high reasoning depth"},
+                {"effort": "max", "description": "Maximum reasoning depth"},
             ],
             "shell_type": "shell_command",
             "visibility": "list",

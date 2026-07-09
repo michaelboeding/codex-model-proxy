@@ -41,7 +41,7 @@ def test_build_args_keeps_to_supported_cli_flags() -> None:
     client = ClaudeCliClient(command="claude", cwd=".", safe_mode=True)
 
     args = client._build_args(
-        "claude-sonnet-4-6",
+        "claude-sonnet-5",
         max_output_tokens=100,
         temperature=0.1,
         top_p=0.5,
@@ -55,9 +55,35 @@ def test_build_args_keeps_to_supported_cli_flags() -> None:
         "--permission-mode",
         "dontAsk",
         "--model",
-        "claude-sonnet-4-6",
+        "claude-sonnet-5",
         "--safe-mode",
         "--tools",
         "",
     ]
 
+
+def test_build_args_includes_effort_when_requested() -> None:
+    client = ClaudeCliClient(command="claude", cwd=".", safe_mode=False)
+
+    args = client._build_args(
+        "opus",
+        max_output_tokens=None,
+        temperature=None,
+        top_p=None,
+        effort="xhigh",
+    )
+
+    assert args == [
+        "claude",
+        "--print",
+        "--output-format",
+        "json",
+        "--permission-mode",
+        "dontAsk",
+        "--model",
+        "opus",
+        "--effort",
+        "xhigh",
+        "--tools",
+        "",
+    ]

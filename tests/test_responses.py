@@ -16,10 +16,13 @@ class FakeClaudeClient:
         self.replies = list(replies or [])
         self.prompts: list[str] = []
         self.models: list[str] = []
+        self.efforts: list[str | None] = []
 
-    def complete(self, prompt: str, model: str, **_: object) -> ClaudeCliResult:
+    def complete(self, prompt: str, model: str, **kwargs: object) -> ClaudeCliResult:
         self.prompts.append(prompt)
         self.models.append(model)
+        effort = kwargs.get("effort")
+        self.efforts.append(effort if isinstance(effort, str) else None)
         text = self.replies.pop(0) if self.replies else "ok"
         return ClaudeCliResult(
             text=text,
@@ -149,6 +152,40 @@ def test_admin_model_switch_changes_stable_model(tmp_path: Path) -> None:
     assert response.status_code == 200
     assert fake.models == ["claude-opus-4-8"]
     assert response.json()["output_text"] == "Admin switch worked."
+
+
+def test_reasoning_effort_minimal_maps_to_claude_low() -> None:
+    fake = install_fake_service(["Low effort worked."])
+
+    response = client().post(
+        "/v1/responses",
+        headers=auth_headers(),
+        json={
+            "model": "claude",
+            "input": "Use low effort.",
+            "reasoning": {"effort": "minimal"},
+        },
+    )
+
+    assert response.status_code == 200
+    assert fake.efforts == ["low"]
+
+
+def test_reasoning_effort_extra_high_maps_to_claude_xhigh() -> None:
+    fake = install_fake_service(["Xhigh effort worked."])
+
+    response = client().post(
+        "/v1/responses",
+        headers=auth_headers(),
+        json={
+            "model": "claude",
+            "input": "Use extra high effort.",
+            "model_reasoning_effort": "Extra High",
+        },
+    )
+
+    assert response.status_code == 200
+    assert fake.efforts == ["xhigh"]
 
 
 def test_streaming_text_response_has_monotonic_sequence_numbers() -> None:

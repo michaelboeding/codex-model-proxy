@@ -345,6 +345,7 @@ class ModelClient(Protocol):
         max_output_tokens: int | None = None,
         temperature: float | None = None,
         top_p: float | None = None,
+        effort: str | None = None,
     ) -> CompletionResult:
         ...
 
@@ -380,6 +381,45 @@ class ModelResolver:
         return self.provider.resolve_model(requested_model, self.active_model_store.get())
 
 
+class ReasoningEffortResolver:
+    aliases = {
+        "minimal": "low",
+        "min": "low",
+        "light": "low",
+        "low": "low",
+        "medium": "medium",
+        "med": "medium",
+        "high": "high",
+        "extra_high": "xhigh",
+        "extra-high": "xhigh",
+        "extra high": "xhigh",
+        "xhigh": "xhigh",
+        "max": "max",
+        "maximum": "max",
+    }
+
+    def resolve(self, body: dict[str, Any]) -> str | None:
+        for value in self._candidate_values(body):
+            normalized = self._normalize(value)
+            if normalized:
+                return normalized
+        return None
+
+    def _candidate_values(self, body: dict[str, Any]) -> Iterable[Any]:
+        reasoning = body.get("reasoning")
+        if isinstance(reasoning, dict):
+            yield reasoning.get("effort")
+            yield reasoning.get("level")
+        yield body.get("reasoning_effort")
+        yield body.get("model_reasoning_effort")
+
+    def _normalize(self, value: Any) -> str | None:
+        if not isinstance(value, str):
+            return None
+        key = value.strip().lower().replace(" ", "_")
+        return self.aliases.get(key)
+
+
 class ResponsesService:
     def __init__(
         self,
@@ -390,6 +430,7 @@ class ResponsesService:
         prompt_builder: PromptBuilder | None = None,
         formatter: ResponseFormatter | None = None,
         model_resolver: ModelResolver | None = None,
+        effort_resolver: ReasoningEffortResolver | None = None,
     ) -> None:
         self.model_client = model_client
         self.store = store or ResponseStore()
@@ -398,6 +439,7 @@ class ResponsesService:
         self.prompt_builder = prompt_builder or PromptBuilder()
         self.formatter = formatter or ResponseFormatter()
         self.model_resolver = model_resolver or ModelResolver()
+        self.effort_resolver = effort_resolver or ReasoningEffortResolver()
 
     def create(self, body: dict[str, Any]) -> dict[str, Any]:
         response = self._complete(body)
@@ -482,6 +524,7 @@ class ResponsesService:
             max_output_tokens=body.get("max_output_tokens"),
             temperature=body.get("temperature"),
             top_p=body.get("top_p"),
+            effort=self.effort_resolver.resolve(body),
         )
 
         function_call = self.tool_adapter.parse_function_call(result.text) if body.get("tools") else None

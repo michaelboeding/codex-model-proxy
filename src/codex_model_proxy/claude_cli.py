@@ -53,8 +53,9 @@ class ClaudeCliClient:
         max_output_tokens: int | None = None,
         temperature: float | None = None,
         top_p: float | None = None,
+        effort: str | None = None,
     ) -> ClaudeCliResult:
-        args = self._build_args(model, max_output_tokens, temperature, top_p)
+        args = self._build_args(model, max_output_tokens, temperature, top_p, effort)
         try:
             completed = subprocess.run(
                 args,
@@ -83,6 +84,7 @@ class ClaudeCliClient:
         max_output_tokens: int | None,
         temperature: float | None,
         top_p: float | None,
+        effort: str | None = None,
     ) -> list[str]:
         del max_output_tokens, temperature, top_p
         args = [
@@ -95,6 +97,9 @@ class ClaudeCliClient:
             "--model",
             model,
         ]
+
+        if effort:
+            args.extend(["--effort", effort])
 
         if self.safe_mode:
             args.append("--safe-mode")
