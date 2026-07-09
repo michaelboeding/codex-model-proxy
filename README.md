@@ -23,9 +23,20 @@ Codex still owns the coding workflow. It runs shell commands, edits files, asks 
 | Gemini CLI | `gemini:gemini-3-pro` | `gemini`, `gemini-pro`, `flash` | Local `gemini` CLI | Gemini CLI auth or API/Vertex credentials |
 | Antigravity | `antigravity:gemini-3.5-flash-medium` | `antigravity`, `antigravity-pro`, `antigravity-flash` | Local `agy` CLI | Antigravity subscription login |
 | Grok | `grok:grok-4.5` | `grok`, `xai`, `grok-latest` | Local `grok` CLI | `grok login` plus credits/subscription |
-| Cursor | `cursor:auto` | `cursor`, `composer`, `cursor-opus`, `cursor-gpt` | Local `cursor-agent` CLI | `cursor-agent login` or `CURSOR_API_KEY` |
+| Cursor | `cursor:auto` | `cursor`, `composer`, `cursor-opus`, `cursor-gpt`, `cursor-gemini` | Local `cursor-agent` CLI | `cursor-agent login` or `CURSOR_API_KEY` |
 
-The provider list is config-driven. You can override model lists with environment variables such as `CLAUDE_MODELS`, `GROK_MODELS`, or `CURSOR_MODELS`.
+The provider list is config-driven. Built-in catalogs cover the model lists we can verify locally, and you can override them with environment variables such as `CLAUDE_MODELS`, `GROK_MODELS`, or `CURSOR_MODELS`.
+
+## Model Catalog Coverage
+
+| Provider | Built-in catalog source |
+| --- | --- |
+| Claude Code | Aliases and full model-name behavior documented by `claude --help`; defaults include `fable`, `opus`, `sonnet`, `haiku`, and their latest full names. |
+| OpenAI | Static Responses API defaults because available API models depend on the key/account; override with `OPENAI_MODELS` for your account. |
+| Gemini CLI | Static Gemini CLI defaults because this CLI exposes `--model` but not a local model catalog command in the tested install. |
+| Antigravity | Mirrors the local `agy models` output. |
+| Grok | Mirrors the local `grok models` output. |
+| Cursor | Mirrors the local `cursor-agent models` output, including Codex, GPT, Claude, Grok, Gemini, Composer, Kimi, and GLM entries. |
 
 ## How It Works
 
@@ -411,12 +422,12 @@ http://127.0.0.1:8000
 | `MODEL_PROXY_STABLE_MODEL` | `claude` | Stable Codex-facing model slug. |
 | `MODEL_PROXY_DEFAULT_MODEL` | unset | Optional default route or alias used when no active model file is present. Examples: `opus`, `openai:gpt-5.5`, `gemini`, `antigravity`, `grok`, `cursor`. |
 | `MODEL_PROXY_ACTIVE_MODEL_FILE` | `~/.codex/model-proxy-active-model` | Generic active backend model file. |
-| `CLAUDE_MODELS` | `fable,opus,sonnet,haiku,claude-fable-5,claude-opus-4-8,claude-sonnet-5,claude-haiku-4-5,claude-haiku-4-5-20251001` | Claude backend models. |
-| `OPENAI_MODELS` | `gpt-5.5,gpt-5.4-mini,gpt-5.3-codex-spark` | OpenAI backend models. |
-| `GEMINI_MODELS` | `gemini-3-pro,gemini-2.5-pro,gemini-2.5-flash` | Gemini backend models. |
+| `CLAUDE_MODELS` | `fable,opus,sonnet,haiku,claude-fable-5,claude-opus-4-8,claude-sonnet-5,claude-haiku-4-5,claude-haiku-4-5-20251001` | Claude backend models. Leave unset unless your Claude CLI exposes a different catalog. |
+| `OPENAI_MODELS` | `gpt-5.5,gpt-5.4-mini,gpt-5.3-codex-spark` | OpenAI backend models. Available API models are account-dependent, so override this for your key when needed. |
+| `GEMINI_MODELS` | `gemini-3-pro,gemini-2.5-pro,gemini-2.5-flash` | Gemini backend models. Override this if your Gemini CLI account supports a different set. |
 | `ANTIGRAVITY_MODELS` | `gemini-3.5-flash-medium,gemini-3.5-flash-high,gemini-3.5-flash-low,gemini-3.1-pro-high,gemini-3.1-pro-low,claude-sonnet-4.6-thinking,claude-opus-4.6-thinking,gpt-oss-120b-medium` | Antigravity backend models. Override if your Antigravity account exposes different slugs. |
 | `GROK_MODELS` | `grok-4.5` | Grok backend models. |
-| `CURSOR_MODELS` | `auto,composer-2.5,grok-4.5,claude-opus-4-8,claude-sonnet-5,gpt-5.5,gemini-3-1-pro` | Cursor backend models. |
+| `CURSOR_MODELS` | full built-in `cursor-agent models` catalog | Cursor backend models. Override this only if your Cursor account exposes a different catalog. |
 | `CLAUDE_COMMAND` | `claude` | Claude Code CLI command to execute for the current backend. |
 | `CLAUDE_TIMEOUT_SECONDS` | `300` | Subprocess timeout for each Claude request. |
 | `CLAUDE_SAFE_MODE` | `1` | Adds `--safe-mode` to Claude CLI invocations. |
@@ -798,7 +809,7 @@ The key validation is that Codex asks for and runs tools itself, rather than the
 
 ## Known Limitations
 
-- Model lists are configured by `CLAUDE_MODELS`, `OPENAI_MODELS`, `GEMINI_MODELS`, `ANTIGRAVITY_MODELS`, `GROK_MODELS`, and `CURSOR_MODELS`, not dynamically discovered.
+- Model lists use built-in static catalogs and optional overrides through `CLAUDE_MODELS`, `OPENAI_MODELS`, `GEMINI_MODELS`, `ANTIGRAVITY_MODELS`, `GROK_MODELS`, and `CURSOR_MODELS`. The proxy does not run model-discovery commands on startup.
 - The proxy process must be running before Codex can fetch proxy model metadata.
 - Session continuity is in memory only. Restarting the proxy clears `previous_response_id` history.
 - Streaming is compatibility streaming, not true token-by-token streaming from the backend.

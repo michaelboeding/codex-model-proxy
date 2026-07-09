@@ -88,6 +88,9 @@ def test_models_returns_openai_and_codex_shapes() -> None:
     assert "antigravity:gemini-3.5-flash-medium" in [item["id"] for item in body["data"]]
     assert "grok:grok-4.5" in [item["id"] for item in body["data"]]
     assert "cursor:auto" in [item["id"] for item in body["data"]]
+    assert "cursor:gpt-5.3-codex" in [item["id"] for item in body["data"]]
+    assert "cursor:claude-opus-4-8-thinking-high" in [item["id"] for item in body["data"]]
+    assert "cursor:grok-4.5-xhigh" in [item["id"] for item in body["data"]]
 
 
 def test_text_response() -> None:
@@ -191,6 +194,37 @@ def test_cursor_alias_routes_to_cursor_backend() -> None:
     assert response.status_code == 200
     assert fake.models == ["cursor:auto"]
     assert response.json()["model"] == "cursor:auto"
+
+
+def test_cursor_prefixed_aliases_route_to_current_cursor_catalog() -> None:
+    fake = install_fake_service(
+        [
+            "Cursor Opus worked.",
+            "Cursor GPT worked.",
+            "Cursor Grok worked.",
+            "Cursor Gemini worked.",
+        ]
+    )
+
+    for selected_model in [
+        "cursor:claude-opus-4-8",
+        "cursor:gpt-5.5",
+        "cursor:grok-4.5",
+        "cursor:gemini-3-1-pro",
+    ]:
+        response = client().post(
+            "/v1/responses",
+            headers=auth_headers(),
+            json={"model": selected_model, "input": "Use a Cursor model."},
+        )
+        assert response.status_code == 200
+
+    assert fake.models == [
+        "cursor:claude-opus-4-8-thinking-high",
+        "cursor:gpt-5.5-high",
+        "cursor:grok-4.5-xhigh",
+        "cursor:gemini-3.1-pro",
+    ]
 
 
 def test_stable_claude_model_uses_active_model_store(tmp_path: Path) -> None:
