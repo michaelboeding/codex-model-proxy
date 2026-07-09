@@ -38,7 +38,7 @@ def install_fake_service(
 ) -> FakeClaudeClient:
     fake = FakeClaudeClient(replies)
     if active_model_store is None:
-        test_path = Path("/tmp/codex-claude-test-active-model")
+        test_path = Path("/tmp/codex-model-proxy-test-active-model")
         test_path.unlink(missing_ok=True)
         active_model_store = ActiveModelStore(path=test_path)
     server.active_model_store = active_model_store

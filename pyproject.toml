@@ -28,8 +28,6 @@ dev = [
 codex-model-proxy = "codex_model_proxy.cli:main"
 codex-model-proxyctl = "codex_model_proxy.model_cli:main"
 codex-model-proxy-mcp = "codex_model_proxy.mcp_server:main"
-codex-claude-code-proxy = "codex_model_proxy.cli:main"
-codex-claude-model = "codex_model_proxy.model_cli:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

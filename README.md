@@ -290,13 +290,6 @@ The server listens on:
 http://127.0.0.1:8000
 ```
 
-The old command names still exist as aliases:
-
-```bash
-.venv/bin/codex-claude-code-proxy
-.venv/bin/codex-claude-model
-```
-
 ## Environment Variables
 
 | Variable | Default | Purpose |
@@ -351,7 +344,7 @@ curl -s http://127.0.0.1:8000/v1/responses \
   -d '{"model":"claude","input":"Reply with exactly: proxy-ok"}'
 ```
 
-Compatibility streaming:
+Streaming response:
 
 ```bash
 curl -N http://127.0.0.1:8000/v1/responses \
@@ -691,15 +684,10 @@ That is expected with recent Claude CLI versions. This proxy parses the raw CLI 
 
 The server should stay bound to `127.0.0.1` for local testing.
 
-Package rename notes:
+Project naming:
 
-- New project and repo name: `codex-model-proxy`.
-- New Python package: `codex_model_proxy`.
-- Compatibility package: `codex_claude_code_proxy`.
-- New server command: `codex-model-proxy`.
-- New switcher command: `codex-model-proxyctl`.
-- Compatibility commands: `codex-claude-code-proxy`, `codex-claude-model`.
-
-## Git State
-
-This repository has been initialized with `git init`, but the initial files have not been committed yet.
+- Repository name: `codex-model-proxy`.
+- Python package: `codex_model_proxy`.
+- Server command: `codex-model-proxy`.
+- Switcher command: `codex-model-proxyctl`.
+- MCP command: `codex-model-proxy-mcp`.
