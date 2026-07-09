@@ -1,98 +1,62 @@
 # Codex Model Proxy
 
-Local OpenAI Responses-compatible proxy for using subscription-backed and API-backed model runners from Codex.
+Local model router for Codex. It lets the Codex CLI or Mac app talk to one local OpenAI Responses-compatible endpoint, while the actual model can come from Claude Code, OpenAI, Gemini, Antigravity, Grok, Cursor, or another provider you add later.
 
-The proxy currently supports six backend families:
-
-- Claude Code through the installed `claude` terminal command.
-- OpenAI models through the upstream OpenAI Responses API.
-- Gemini models through the installed `gemini` terminal command.
-- Antigravity models through the installed `antigravity` terminal command.
-- Grok models through the installed `grok` terminal command.
-- Cursor models through the installed `cursor-agent` terminal command.
-
-The repo is structured so more providers can be added without rewriting the Codex-facing API, model picker metadata, active-route switcher, or MCP control server.
-
-This project does not use the Claude Agent SDK. For CLI-backed providers, it invokes local terminal commands as the current user, parses command output, and exposes the endpoints Codex expects from a model provider.
-
-## Why This Exists
-
-Codex already knows how to drive an agentic coding workflow: it owns the workspace, runs shell commands, edits files, asks for approvals, respects sandbox settings, and integrates with the Mac app. Other model runners already know how to reach their own models through terminal subscriptions or provider APIs. The missing piece is a clean bridge between those worlds.
-
-`codex-model-proxy` is that bridge. It lets Codex keep acting like Codex while the model response can come from a local subscription-backed runner.
-
-That matters because a naive CLI-agent integration can accidentally move the tool-running boundary into the backend runner. This repo deliberately avoids that. Codex remains the thing that runs commands, reads files through tools, edits files, asks for approvals, and applies patches. The backend supplies model text; Codex performs the actions.
-
-## Why It Is Useful
-
-- Use Claude Code, OpenAI, Gemini, Antigravity, Grok, or Cursor models from the Codex CLI or Mac app through one local provider.
-- Keep Codex's approvals, sandboxing, tool loops, and Mac app behavior intact.
-- Switch between configured backend providers and models without restarting Codex.
-- Keep the proxy local on `127.0.0.1` with a bearer token.
-- Add future local, subscription, or API providers behind the same Codex-facing API.
-- Control the proxy from Codex through generic MCP tools such as `list_models` and `switch_model`.
-
-The practical goal is not just "curl returns text." The useful target is: Codex can chat, review code, call tools, and edit files while the model answer comes from the active backend route.
-
-## Mental Model
-
-Codex sees one normal local Responses provider:
+The easiest way to use it is with the included MCP control server. Codex starts the MCP server, the MCP server starts the local HTTP proxy, and then you can switch models by chatting:
 
 ```text
-model_provider = "claude_code_cli_proxy"
-model = "claude"
+list proxy models
+switch model to opus
+switch model to gpt
+switch provider to grok
+show model proxy status
 ```
 
-The proxy sees that stable `claude` model and resolves it to the active backend route:
+Codex still owns the coding workflow. It runs shell commands, edits files, asks for approvals, applies patches, and respects sandboxing. The backend model supplies responses; Codex remains the tool runner.
+
+## Supported Providers
+
+| Provider | Default route | Useful aliases | How it connects | Setup needed |
+| --- | --- | --- | --- | --- |
+| Claude Code | `claude:opus` | `opus`, `sonnet`, `haiku`, `fable` | Local `claude` CLI | `claude auth login` |
+| OpenAI | `openai:gpt-5.5` | `gpt`, `openai`, `chatgpt`, `mini`, `spark` | OpenAI Responses API | `OPENAI_API_KEY` in the proxy environment |
+| Gemini CLI | `gemini:gemini-3-pro` | `gemini`, `gemini-pro`, `flash` | Local `gemini` CLI | Gemini CLI auth or API/Vertex credentials |
+| Antigravity | `antigravity:gemini-3-pro` | `antigravity`, `antigravity-pro`, `antigravity-flash` | Local `antigravity` CLI | Antigravity subscription login |
+| Grok | `grok:grok-4.5` | `grok`, `xai`, `grok-latest` | Local `grok` CLI | `grok login` |
+| Cursor | `cursor:auto` | `cursor`, `composer`, `cursor-opus`, `cursor-gpt` | Local `cursor-agent` CLI | `cursor-agent login` or `CURSOR_API_KEY` |
+
+The provider list is config-driven. You can override model lists with environment variables such as `CLAUDE_MODELS`, `GROK_MODELS`, or `CURSOR_MODELS`.
+
+## How It Works
+
+Codex is configured once with a stable local model:
+
+```toml
+model = "claude"
+model_provider = "claude_code_cli_proxy"
+```
+
+The proxy maps that stable Codex-facing model to the active backend route:
 
 ```text
 claude -> claude:opus
-claude -> claude:sonnet
 claude -> openai:gpt-5.5
-claude -> gemini:gemini-3-pro
 claude -> antigravity:gemini-3-pro
 claude -> grok:grok-4.5
 claude -> cursor:auto
 ```
 
-The default stable model slug is still `claude` so existing Codex config keeps working. Internally, active routes are canonical provider-qualified IDs:
+When you switch models through MCP, Codex does not need to restart and its configured provider does not change. The next request to `model = "claude"` uses the newly active backend.
+
+## Recommended Setup: MCP Autostart
+
+This is the cleanest desktop workflow:
 
 ```text
-claude:opus
-claude:sonnet
-openai:gpt-5.5
-gemini:gemini-3-pro
-antigravity:gemini-3-pro
-grok:grok-4.5
-cursor:auto
+Open Codex -> Codex starts MCP -> MCP starts proxy on 127.0.0.1:8000 -> ask Codex to switch/list models
 ```
 
-Friendly aliases resolve to those routes. That means Codex can stay configured to one stable model while you switch the real backend through:
-
-```bash
-.venv/bin/codex-model-proxyctl opus
-.venv/bin/codex-model-proxyctl sonnet
-.venv/bin/codex-model-proxyctl gpt
-.venv/bin/codex-model-proxyctl gemini
-.venv/bin/codex-model-proxyctl antigravity
-.venv/bin/codex-model-proxyctl grok
-.venv/bin/codex-model-proxyctl cursor
-```
-
-or through the MCP tool:
-
-```text
-switch model to opus
-switch model to gpt
-switch provider to gemini
-switch provider to antigravity
-switch provider to grok
-switch provider to cursor
-```
-
-## Quick Start
-
-From a fresh checkout:
+### 1. Install
 
 ```bash
 cd ~/Documents/GitHub/codex-model-proxy
@@ -101,21 +65,56 @@ python3 -m venv .venv
 pip install -e ".[dev]"
 ```
 
-Start the proxy:
+### 2. Authenticate the backends you want
+
+You only need to authenticate the providers you plan to use:
 
 ```bash
-PROXY_API_KEY=local-dev-key .venv/bin/codex-model-proxy
+claude auth login
+grok login
+cursor-agent login
+gemini
+antigravity
 ```
 
-Check it:
+For OpenAI routes, put an API key in the environment used to start the proxy:
 
 ```bash
-curl -s http://127.0.0.1:8000/health
-curl -s 'http://127.0.0.1:8000/v1/models?client_version=0.143.0' \
-  -H 'Authorization: Bearer local-dev-key'
+export OPENAI_API_KEY="sk-..."
 ```
 
-Configure Codex in `~/.codex/config.toml`:
+### 3. Create a local token helper
+
+The proxy is local-only by default, but Codex still sends a bearer token. Create:
+
+```text
+~/.codex/claude-cli-proxy-token.sh
+```
+
+with:
+
+```bash
+#!/usr/bin/env bash
+printf '%s\n' 'local-dev-key'
+```
+
+Then:
+
+```bash
+chmod 700 ~/.codex/claude-cli-proxy-token.sh
+```
+
+`local-dev-key` is a development placeholder. Use your own random token if you want a less guessable local key.
+
+### 4. Configure Codex
+
+Add both blocks to user-level config:
+
+```text
+~/.codex/config.toml
+```
+
+Replace `/absolute/path/to/codex-model-proxy` with your checkout path, for example `/Users/you/Documents/GitHub/codex-model-proxy`.
 
 ```toml
 model = "claude"
@@ -132,91 +131,88 @@ stream_max_retries = 1
 command = "/absolute/path/to/.codex/claude-cli-proxy-token.sh"
 timeout_ms = 5000
 refresh_interval_ms = 0
+
+[mcp_servers.model_proxy_control]
+command = "/absolute/path/to/codex-model-proxy/.venv/bin/codex-model-proxy-mcp"
+cwd = "/absolute/path/to/codex-model-proxy"
+startup_timeout_sec = 10
+tool_timeout_sec = 30
+default_tools_approval_mode = "prompt"
+
+[mcp_servers.model_proxy_control.env]
+MODEL_PROXY_PROVIDER_ID = "claude_code_cli_proxy"
+MODEL_PROXY_BASE_URL = "http://127.0.0.1:8000"
+MODEL_PROXY_API_KEY = "local-dev-key"
+MODEL_PROXY_CWD = "/absolute/path/to/codex-model-proxy"
+MODEL_PROXY_AUTOSTART = "1"
+
+[mcp_servers.model_proxy_control.tools.model_proxy_status]
+approval_mode = "approve"
+
+[mcp_servers.model_proxy_control.tools.list_models]
+approval_mode = "approve"
+
+[mcp_servers.model_proxy_control.tools.switch_model]
+approval_mode = "approve"
+
+[mcp_servers.model_proxy_control.tools.switch_provider]
+approval_mode = "approve"
+
+[mcp_servers.model_proxy_control.tools.start_model_proxy]
+approval_mode = "prompt"
 ```
 
-Token helper:
+### 5. Restart Codex and test
+
+After restarting the Codex Mac app or starting a new Codex CLI session, ask:
+
+```text
+show model proxy status
+list proxy models
+switch provider to grok
+switch model to opus
+```
+
+The MCP server should start the proxy automatically. You can also check the HTTP service directly:
 
 ```bash
-#!/usr/bin/env bash
-printf '%s\n' 'local-dev-key'
+curl -s http://127.0.0.1:8000/health
+curl -s 'http://127.0.0.1:8000/v1/models?client_version=0.143.0' \
+  -H 'Authorization: Bearer local-dev-key'
 ```
-
-`local-dev-key` is only a placeholder for local loopback development. Replace it with your own random value if you want a less guessable local token, and do not expose the proxy outside `127.0.0.1`.
-
-Then restart the Codex Mac app or start a new Codex CLI session.
 
 ## Day-To-Day Use
 
-Keep the proxy running on port `8000`, and keep Codex configured to:
-
-```toml
-model = "claude"
-model_provider = "claude_code_cli_proxy"
-```
-
-List backend models:
-
-```bash
-cd ~/Documents/GitHub/codex-model-proxy
-PROXY_API_KEY=local-dev-key .venv/bin/codex-model-proxyctl --list
-```
-
-Switch backend models:
-
-```bash
-PROXY_API_KEY=local-dev-key .venv/bin/codex-model-proxyctl opus
-PROXY_API_KEY=local-dev-key .venv/bin/codex-model-proxyctl sonnet
-PROXY_API_KEY=local-dev-key .venv/bin/codex-model-proxyctl openai:gpt-5.5
-PROXY_API_KEY=local-dev-key .venv/bin/codex-model-proxyctl gemini:gemini-3-pro
-```
-
-Use Codex normally. The next Codex request using `model = "claude"` will resolve to the newly active backend model.
-
-If the MCP control server is configured, you can also ask Codex:
+Use normal language inside Codex:
 
 ```text
 list proxy models
 switch model to opus
 switch model to gpt
 switch provider to gemini
+switch provider to grok
+switch provider to cursor
 show model proxy status
-start the model proxy
 ```
 
-With `MODEL_PROXY_AUTOSTART=1`, the MCP server will also start the HTTP proxy automatically when Codex starts the MCP server. That makes the normal desktop flow:
+You can also switch from a terminal:
 
-```text
-Open Codex -> MCP starts -> proxy starts on 127.0.0.1:8000 -> use model = "claude"
+```bash
+cd ~/Documents/GitHub/codex-model-proxy
+PROXY_API_KEY=local-dev-key .venv/bin/codex-model-proxyctl --list
+PROXY_API_KEY=local-dev-key .venv/bin/codex-model-proxyctl opus
+PROXY_API_KEY=local-dev-key .venv/bin/codex-model-proxyctl grok
+PROXY_API_KEY=local-dev-key .venv/bin/codex-model-proxyctl cursor
 ```
 
-## Current Status
+## Manual Server Start
 
-Ready for local testing.
+MCP autostart is recommended. If you want to run the proxy manually instead:
 
-Verified locally:
-
-- Unit tests pass.
-- `GET /health` works.
-- `GET /v1/models?client_version=0.143.0` returns OpenAI and Codex model catalog shapes.
-- `POST /v1/responses` is covered with mocked Claude/OpenAI/Gemini routing tests.
-- The optional MCP server exposes generic proxy-control tools, including provider switching.
-
-## What This Enables
-
-Codex can be configured with a local provider named `claude_code_cli_proxy`.
-
-With that provider active:
-
-- Codex asks this proxy for model metadata via `/v1/models`.
-- Codex sends OpenAI Responses API requests to `/v1/responses`.
-- The proxy forwards the normalized request to the active backend route.
-- The backend response is converted back into a Codex-compatible Responses object.
-- Codex remains the tool runner for shell commands, file edits, approvals, sandboxing, and Mac app behavior.
-- A generic MCP server can list backend routes, switch the active backend model/provider, show status, and start the proxy.
-
-The stable Codex-facing model is currently `claude`. The proxy resolves that stable model to whichever backend route is active, such as `claude:opus`, `claude:sonnet`, `openai:gpt-5.5`, or `gemini:gemini-3-pro`.
-
-Short names are aliases. For example, `opus` resolves to `claude:opus`, `gpt` resolves to `openai:gpt-5.5`, and `gemini` resolves to `gemini:gemini-3-pro`.
+```bash
+cd ~/Documents/GitHub/codex-model-proxy
+PROXY_API_KEY=local-dev-key .venv/bin/codex-model-proxy
+```
 
 ## Architecture
 
@@ -229,6 +225,9 @@ flowchart LR
   Claude["Claude Code CLI backend"]
   OpenAI["OpenAI Responses backend"]
   Gemini["Gemini CLI backend"]
+  Antigravity["Antigravity CLI backend"]
+  Grok["Grok CLI backend"]
+  Cursor["Cursor Agent backend"]
   Future["Future provider"]
   Tools["Codex tools, approvals, sandbox"]
   Mcp["model-proxy-control MCP"]
@@ -240,10 +239,16 @@ flowchart LR
   Registry --> Claude
   Registry --> OpenAI
   Registry --> Gemini
+  Registry --> Antigravity
+  Registry --> Grok
+  Registry --> Cursor
   Registry -. later .-> Future
   Claude -->|JSON output| Proxy
   OpenAI -->|Responses object| Proxy
   Gemini -->|JSON output| Proxy
+  Antigravity -->|JSON/text output| Proxy
+  Grok -->|JSON/text output| Proxy
+  Cursor -->|JSON/text output| Proxy
   Proxy -->|Responses object / SSE| Codex
   Codex --> Tools
   Codex --> Mcp
@@ -628,9 +633,9 @@ If it is changed to Extra High, the proxy should invoke:
 
 OpenAI routes receive `reasoning.effort` for `low`, `medium`, and `high`; `xhigh` and `max` are clamped to `high`. Gemini CLI routes currently ignore the effort value because the local CLI does not expose an equivalent stable flag.
 
-## Optional MCP Control Server
+## MCP Control Server Reference
 
-The repo ships a local stdio MCP server. It does not replace the Responses proxy; it gives Codex tools for controlling the local proxy while Codex is running.
+The repo ships a local stdio MCP server. It does not replace the Responses proxy; it gives Codex tools for controlling the local proxy while Codex is running. This is the recommended way to use the proxy from the Codex desktop app because it can start the HTTP proxy and switch backend routes without leaving the chat.
 
 Codex config is needed here for the same reason it is needed for any local stdio MCP server: Codex has to know which executable to launch, which working directory to use, what startup/tool timeouts to apply, and which environment variables to pass into the MCP process. The MCP server is not discovered automatically from the repo.
 
@@ -691,6 +696,9 @@ list proxy models
 switch model to opus
 switch model to openai:gpt-5.5
 switch provider to gemini
+switch provider to antigravity
+switch provider to grok
+switch provider to cursor
 show model proxy status
 start the model proxy
 ```
