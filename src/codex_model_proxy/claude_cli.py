@@ -7,8 +7,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .errors import ModelBackendError
 
-class ClaudeCliError(RuntimeError):
+
+class ClaudeCliError(ModelBackendError):
     """Raised when the local claude CLI cannot produce a usable response."""
 
 

@@ -15,6 +15,8 @@ INSTRUCTIONS = (
     "Use this server to inspect and control the local model proxy. "
     "The `switch_model` tool changes the backend model used for the next request "
     "behind the stable Codex-facing model; it does not change Codex's configured provider. "
+    "Use qualified routes like `claude:opus`, `openai:gpt-5.5`, or `gemini:gemini-3-pro`, "
+    "or aliases such as `opus`, `gpt`, and `gemini`. "
     "Set MODEL_PROXY_AUTOSTART=1 to start the HTTP proxy automatically when this MCP server starts."
 )
 
@@ -124,6 +126,12 @@ class ModelProxyMcpServer:
                 raise ModelProxyError("switch_model requires a string `model` argument")
             return self.controller.switch_model(model)
 
+        if name == "switch_provider":
+            provider = arguments.get("provider")
+            if not isinstance(provider, str):
+                raise ModelProxyError("switch_provider requires a string `provider` argument")
+            return self.controller.switch_provider(provider)
+
         if name == "start_model_proxy":
             return self.controller.start_proxy()
 
@@ -185,16 +193,31 @@ def tool_definitions() -> list[dict[str, Any]]:
         },
         {
             "name": "switch_model",
-            "description": "Switch the backend model used by the local model proxy for future requests.",
+            "description": "Switch the backend model route used by the local model proxy for future requests.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "model": {
                         "type": "string",
-                        "description": "Backend model to use next, such as fable, opus, sonnet, haiku, claude-fable-5, claude-opus-4-8, or claude-sonnet-5.",
+                        "description": "Backend model route or alias to use next, such as opus, sonnet, openai:gpt-5.5, gpt, gemini:gemini-3-pro, or gemini.",
                     }
                 },
                 "required": ["model"],
+                "additionalProperties": False,
+            },
+        },
+        {
+            "name": "switch_provider",
+            "description": "Switch to a provider's default backend model route for future requests.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "provider": {
+                        "type": "string",
+                        "description": "Provider alias to use next, such as claude, openai, gpt, or gemini.",
+                    }
+                },
+                "required": ["provider"],
                 "additionalProperties": False,
             },
         },

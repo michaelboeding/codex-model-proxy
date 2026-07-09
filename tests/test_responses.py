@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from codex_model_proxy import server
 from codex_model_proxy.active_model import ActiveModelStore
 from codex_model_proxy.claude_cli import ClaudeCliResult
+from codex_model_proxy.providers import ProviderRegistry
 from codex_model_proxy.responses import ModelResolver, ResponseStore, ResponsesService
 
 
@@ -37,15 +38,16 @@ def install_fake_service(
     active_model_store: ActiveModelStore | None = None,
 ) -> FakeClaudeClient:
     fake = FakeClaudeClient(replies)
+    registry = ProviderRegistry()
     if active_model_store is None:
         test_path = Path("/tmp/codex-model-proxy-test-active-model")
         test_path.unlink(missing_ok=True)
-        active_model_store = ActiveModelStore(path=test_path)
+        active_model_store = ActiveModelStore(path=test_path, registry=registry)
     server.active_model_store = active_model_store
     server.service = ResponsesService(
         fake,
         store=ResponseStore(),
-        model_resolver=ModelResolver(active_model_store=active_model_store),
+        model_resolver=ModelResolver(registry=registry, active_model_store=active_model_store),
     )
     return fake
 
@@ -78,9 +80,11 @@ def test_models_returns_openai_and_codex_shapes() -> None:
     assert response.status_code == 200
     assert body["data"][0]["id"] == "claude"
     assert body["models"][0]["slug"] == "claude"
-    assert body["models"][0]["display_name"] == "Claude"
+    assert body["models"][0]["display_name"] == "Model Proxy"
     assert body["models"][0]["supported_in_api"] is True
     assert body["models"][0]["service_tiers"][0]["id"] == "priority"
+    assert "openai:gpt-5.5" in [item["id"] for item in body["data"]]
+    assert "gemini:gemini-3-pro" in [item["id"] for item in body["data"]]
 
 
 def test_text_response() -> None:
@@ -100,8 +104,8 @@ def test_text_response() -> None:
     assert "Say hello." in fake.prompts[0]
 
 
-def test_openai_model_slug_falls_back_to_latest_opus_alias() -> None:
-    fake = install_fake_service(["Fallback worked."])
+def test_openai_mini_model_slug_routes_to_openai_backend() -> None:
+    fake = install_fake_service(["OpenAI mini worked."])
 
     response = client().post(
         "/v1/responses",
@@ -110,9 +114,38 @@ def test_openai_model_slug_falls_back_to_latest_opus_alias() -> None:
     )
 
     assert response.status_code == 200
-    assert fake.models == ["opus"]
-    assert response.json()["model"] == "opus"
-    assert response.json()["output_text"] == "Fallback worked."
+    assert fake.models == ["openai:gpt-5.4-mini"]
+    assert response.json()["model"] == "openai:gpt-5.4-mini"
+    assert response.json()["output_text"] == "OpenAI mini worked."
+
+
+def test_openai_model_slug_routes_to_openai_backend() -> None:
+    fake = install_fake_service(["OpenAI route worked."])
+
+    response = client().post(
+        "/v1/responses",
+        headers=auth_headers(),
+        json={"model": "gpt-5.5", "input": "This was selected from the app picker."},
+    )
+
+    assert response.status_code == 200
+    assert fake.models == ["openai:gpt-5.5"]
+    assert response.json()["model"] == "openai:gpt-5.5"
+    assert response.json()["output_text"] == "OpenAI route worked."
+
+
+def test_gemini_alias_routes_to_gemini_backend() -> None:
+    fake = install_fake_service(["Gemini route worked."])
+
+    response = client().post(
+        "/v1/responses",
+        headers=auth_headers(),
+        json={"model": "gemini", "input": "Use Gemini."},
+    )
+
+    assert response.status_code == 200
+    assert fake.models == ["gemini:gemini-3-pro"]
+    assert response.json()["model"] == "gemini:gemini-3-pro"
 
 
 def test_stable_claude_model_uses_active_model_store(tmp_path: Path) -> None:
@@ -127,8 +160,8 @@ def test_stable_claude_model_uses_active_model_store(tmp_path: Path) -> None:
     )
 
     assert response.status_code == 200
-    assert fake.models == ["opus"]
-    assert response.json()["model"] == "opus"
+    assert fake.models == ["claude:opus"]
+    assert response.json()["model"] == "claude:opus"
     assert response.json()["output_text"] == "Active model worked."
 
 
@@ -148,9 +181,9 @@ def test_admin_model_switch_changes_stable_model(tmp_path: Path) -> None:
     )
 
     assert update.status_code == 200
-    assert update.json()["model"] == "claude-opus-4-8"
+    assert update.json()["model"] == "claude:claude-opus-4-8"
     assert response.status_code == 200
-    assert fake.models == ["claude-opus-4-8"]
+    assert fake.models == ["claude:claude-opus-4-8"]
     assert response.json()["output_text"] == "Admin switch worked."
 
 

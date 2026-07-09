@@ -27,6 +27,10 @@ class FakeController:
         self.active_model = model
         return self.safe_status()
 
+    def switch_provider(self, provider: str):
+        self.active_model = provider
+        return self.safe_status()
+
     def start_proxy(self):
         self.started = True
         return {**self.safe_status(), "started": True}
@@ -65,6 +69,7 @@ def test_tools_list_is_generic() -> None:
         "model_proxy_status",
         "list_models",
         "switch_model",
+        "switch_provider",
         "start_model_proxy",
     ]
 
@@ -97,6 +102,25 @@ def test_switch_model_tool_returns_json_content() -> None:
     assert result["isError"] is False
     assert payload["active_model"] == "opus"
     assert payload["stable_model"] == "claude"
+
+
+def test_switch_provider_tool_returns_json_content() -> None:
+    controller = FakeController()
+    server = ModelProxyMcpServer(controller)
+
+    response = server.handle_message(
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {"name": "switch_provider", "arguments": {"provider": "gemini"}},
+        }
+    )
+
+    result = response["result"]
+    payload = json.loads(result["content"][0]["text"])
+    assert result["isError"] is False
+    assert payload["active_model"] == "gemini"
 
 
 def test_status_can_start_if_down() -> None:

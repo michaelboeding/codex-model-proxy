@@ -1,13 +1,10 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
-from .providers.claude_code import DEFAULT_CLAUDE_MODEL, DEFAULT_CLAUDE_MODELS, STABLE_CLAUDE_MODEL
-from .providers.base import ProviderSpec
-
-
-DEFAULT_MODEL = DEFAULT_CLAUDE_MODEL
-STABLE_MODEL = STABLE_CLAUDE_MODEL
+from .providers.base import ModelRoute
+from .providers.registry import ProviderRegistry
 
 
 class ActiveModelStore:
@@ -16,23 +13,14 @@ class ActiveModelStore:
         path: str | Path | None = None,
         default_model: str | None = None,
         available_models: list[str] | None = None,
-        stable_model: str = STABLE_MODEL,
-        provider: ProviderSpec | None = None,
+        stable_model: str | None = None,
+        registry: ProviderRegistry | None = None,
     ) -> None:
-        if provider is not None:
-            path = path or provider.active_model_file
-            default_model = default_model or provider.default_model
-            available_models = available_models or provider.available_model_ids
-            stable_model = provider.stable_model
-
-        self.path = Path(path or "~/.codex/model-proxy-active-model").expanduser()
-        self.default_model = default_model or DEFAULT_MODEL
-        self.available_models = available_models or [
-            model.strip()
-            for model in DEFAULT_CLAUDE_MODELS.split(",")
-            if model.strip()
-        ]
-        self.stable_model = stable_model
+        self.registry = registry or ProviderRegistry()
+        self.path = Path(path or self._active_model_file()).expanduser()
+        self.default_model = self.registry.resolve_route_id(default_model) if default_model else self.registry.default_route_id
+        self.available_models = available_models or self.registry.accepted_model_ids
+        self.stable_model = stable_model or self.registry.stable_model
 
     def get(self) -> str:
         try:
@@ -41,19 +29,28 @@ class ActiveModelStore:
             return self.default_model
         if not model:
             return self.default_model
-        if model not in self.available_models:
+        try:
+            return self.registry.resolve_route_id(model)
+        except ValueError:
             return self.default_model
-        return model
+
+    def get_route(self) -> ModelRoute:
+        return self.registry.route(self.get())
 
     def set(self, model: str) -> str:
         model = model.strip()
         if model == self.stable_model:
             model = self.default_model
-        if model not in self.available_models:
-            allowed = ", ".join(self.available_models)
-            raise ValueError(f"Unknown model '{model}'. Expected one of: {allowed}")
+        route_id = self.registry.resolve_route_id(model)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         temp_path = self.path.with_suffix(self.path.suffix + ".tmp")
-        temp_path.write_text(model + "\n", encoding="utf-8")
+        temp_path.write_text(route_id + "\n", encoding="utf-8")
         temp_path.replace(self.path)
-        return model
+        return route_id
+
+    @staticmethod
+    def _active_model_file() -> Path:
+        configured = os.getenv("MODEL_PROXY_ACTIVE_MODEL_FILE")
+        if configured:
+            return Path(configured).expanduser()
+        return Path("~/.codex/model-proxy-active-model").expanduser()

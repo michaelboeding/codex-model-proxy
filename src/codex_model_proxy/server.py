@@ -8,8 +8,9 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from . import __version__
 from .active_model import ActiveModelStore
-from .claude_cli import ClaudeCliClient, ClaudeCliError
-from .providers import ProviderSpec, selected_provider
+from .errors import ModelBackendError
+from .model_clients import RoutedModelClient
+from .providers import ProviderRegistry
 from .responses import ModelResolver, ResponseStore, ResponsesService
 
 
@@ -44,32 +45,30 @@ def require_auth(authorization: str | None = Header(default=None)) -> None:
         )
 
 
-def make_provider() -> ProviderSpec:
-    return selected_provider()
+def make_registry() -> ProviderRegistry:
+    return ProviderRegistry()
 
 
-provider_spec = make_provider()
+provider_registry = make_registry()
 
 
-def make_active_model_store(provider: ProviderSpec | None = None) -> ActiveModelStore:
-    return ActiveModelStore(provider=provider or provider_spec)
+def make_active_model_store(registry: ProviderRegistry | None = None) -> ActiveModelStore:
+    return ActiveModelStore(registry=registry or provider_registry)
 
 
 active_model_store = make_active_model_store()
 
 
-def make_model_client(provider: ProviderSpec) -> ClaudeCliClient:
-    if provider.backend_id == "claude_code":
-        return ClaudeCliClient()
-    raise RuntimeError(f"No model runner configured for backend provider '{provider.backend_id}'")
+def make_model_client(registry: ProviderRegistry) -> RoutedModelClient:
+    return RoutedModelClient(registry)
 
 
 def make_service() -> ResponsesService:
     ttl = int(os.getenv("RESPONSE_TTL_SECONDS", "3600"))
     return ResponsesService(
-        make_model_client(provider_spec),
+        make_model_client(provider_registry),
         store=ResponseStore(ttl_seconds=ttl),
-        model_resolver=ModelResolver(provider=provider_spec, active_model_store=active_model_store),
+        model_resolver=ModelResolver(registry=provider_registry, active_model_store=active_model_store),
     )
 
 
@@ -77,11 +76,11 @@ service = make_service()
 
 
 class ModelCatalog:
-    def __init__(self, provider: ProviderSpec | None = None) -> None:
-        self.provider = provider or provider_spec
+    def __init__(self, registry: ProviderRegistry | None = None) -> None:
+        self.registry = registry or provider_registry
 
     def names(self) -> list[str]:
-        return self.provider.catalog_model_ids
+        return self.registry.catalog_model_ids
 
     def openai_items(self) -> list[dict[str, Any]]:
         return [
@@ -89,7 +88,7 @@ class ModelCatalog:
                 "id": name,
                 "object": "model",
                 "created": 0,
-                "owned_by": self.provider.owned_by,
+                "owned_by": self._owned_by(name),
             }
             for name in self.names()
         ]
@@ -98,10 +97,15 @@ class ModelCatalog:
         return [self._codex_model_info(name) for name in self.names()]
 
     def _codex_model_info(self, name: str) -> dict[str, Any]:
+        route = self.registry.route(name) if name != self.registry.stable_model else None
         return {
             "slug": name,
-            "display_name": self.provider.display_name_for(name),
-            "description": self.provider.catalog_description,
+            "display_name": self.registry.display_name_for(name),
+            "description": (
+                route.provider.catalog_description
+                if route
+                else "Stable Codex-facing model routed through the active local backend."
+            ),
             "default_reasoning_level": "high",
             "supported_reasoning_levels": [
                 {"effort": "minimal", "description": "Minimal reasoning, mapped to Claude low effort"},
@@ -149,7 +153,7 @@ class ModelCatalog:
             "supports_image_detail_original": False,
             "context_window": 200000,
             "max_context_window": 200000,
-            "comp_hash": self.provider.comp_hash,
+            "comp_hash": route.provider.comp_hash if route else "codex-model-proxy-stable-v1",
             "effective_context_window_percent": 90,
             "experimental_supported_tools": [],
             "input_modalities": ["text"],
@@ -157,32 +161,46 @@ class ModelCatalog:
             "use_responses_lite": False,
         }
 
+    def _owned_by(self, name: str) -> str:
+        if name == self.registry.stable_model:
+            return "codex-model-proxy"
+        return self.registry.route(name).provider.owned_by
+
 
 @app.get("/health")
 def health() -> dict[str, Any]:
+    active_route = active_model_store.get_route()
     return {
         "status": "ok",
         "service": "codex-model-proxy",
         "version": __version__,
-        "backend_provider": provider_spec.backend_id,
-        "codex_provider_id": provider_spec.codex_provider_id,
-        "backend_runner": provider_spec.runner_description,
-        "backend_command": os.getenv("CLAUDE_COMMAND", "claude") if provider_spec.backend_id == "claude_code" else None,
-        "stable_model": provider_spec.stable_model,
+        "backend_provider": active_route.provider.backend_id,
+        "codex_provider_id": provider_registry.codex_provider_id,
+        "backend_runner": active_route.provider.runner_description,
+        "backend_command": backend_command_for(active_route.provider.backend_id),
+        "stable_model": provider_registry.stable_model,
         "active_model": active_model_store.get(),
+        "active_backend_model": active_route.model,
+        "available_models": active_model_store.available_models,
     }
 
 
 @app.get("/admin/model", dependencies=[Depends(require_auth)])
 def get_active_model() -> dict[str, Any]:
+    active_route = active_model_store.get_route()
     return {
         "model": active_model_store.get(),
-        "stable_model": provider_spec.stable_model,
+        "active_model": active_model_store.get(),
+        "active_provider": active_route.provider.backend_id,
+        "active_provider_display_name": active_route.provider.display_name,
+        "active_backend_model": active_route.model,
+        "stable_model": provider_registry.stable_model,
         "default_model": active_model_store.default_model,
         "available_models": active_model_store.available_models,
+        "routes": provider_registry.model_catalog(),
         "model_file": str(active_model_store.path),
-        "backend_provider": provider_spec.backend_id,
-        "codex_provider_id": provider_spec.codex_provider_id,
+        "backend_provider": active_route.provider.backend_id,
+        "codex_provider_id": provider_registry.codex_provider_id,
     }
 
 
@@ -238,10 +256,18 @@ async def responses(request: Request):
             status_code=404,
             code="previous_response_not_found",
         )
-    except ClaudeCliError as exc:
+    except ModelBackendError as exc:
         return error_response(str(exc), status_code=502, code="model_backend_error")
     except Exception as exc:
         return error_response(str(exc), status_code=500, code="internal_error")
+
+
+def backend_command_for(backend_id: str) -> str | None:
+    if backend_id == "claude_code":
+        return os.getenv("CLAUDE_COMMAND", "claude")
+    if backend_id == "gemini_cli":
+        return os.getenv("GEMINI_COMMAND", "gemini")
+    return None
 
 
 def error_response(message: str, *, status_code: int, code: str = "invalid_request_error") -> JSONResponse:

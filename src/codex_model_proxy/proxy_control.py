@@ -90,10 +90,16 @@ class ModelProxyController:
             "base_url": self.config.base_url,
             "proxy_running": True,
             "active_model": result.get("model"),
+            "active_provider": result.get("active_provider"),
+            "active_backend_model": result.get("active_backend_model"),
             "stable_model": result.get("stable_model"),
             "available_models": result.get("available_models", []),
+            "routes": result.get("routes", []),
             "model_file": result.get("model_file"),
         }
+
+    def switch_provider(self, provider: str) -> dict[str, Any]:
+        return self.switch_model(provider)
 
     def start_proxy(self) -> dict[str, Any]:
         status = self.safe_status()
@@ -197,4 +203,3 @@ def _start_command(base_url: str) -> list[str]:
         "--port",
         port,
     ]
-

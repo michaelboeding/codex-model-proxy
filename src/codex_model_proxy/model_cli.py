@@ -44,6 +44,17 @@ def main() -> None:
         for model in data["available_models"]:
             marker = "*" if model == data["model"] else "-"
             print(f"  {marker} {model}")
+        routes = data.get("routes") or []
+        if routes:
+            print("routes:")
+            for route in routes:
+                if not isinstance(route, dict):
+                    continue
+                route_id = route.get("id")
+                provider = route.get("provider")
+                display_name = route.get("display_name")
+                marker = "*" if route_id == data["model"] else "-"
+                print(f"  {marker} {route_id} ({provider}) - {display_name}")
 
 
 def request_json(

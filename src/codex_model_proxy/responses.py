@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any, Iterable, Protocol
 
 from .active_model import ActiveModelStore
-from .providers import ProviderSpec, selected_provider
+from .providers import ProviderRegistry
 
 
 TOOL_CALL_RE = re.compile(
@@ -371,14 +371,14 @@ class SseEncoder:
 class ModelResolver:
     def __init__(
         self,
-        provider: ProviderSpec | None = None,
+        registry: ProviderRegistry | None = None,
         active_model_store: ActiveModelStore | None = None,
     ) -> None:
-        self.provider = provider or selected_provider()
-        self.active_model_store = active_model_store or ActiveModelStore(provider=self.provider)
+        self.registry = registry or ProviderRegistry()
+        self.active_model_store = active_model_store or ActiveModelStore(registry=self.registry)
 
     def resolve(self, requested_model: Any) -> str:
-        return self.provider.resolve_model(requested_model, self.active_model_store.get())
+        return self.registry.resolve_request_model(requested_model, self.active_model_store.get())
 
 
 class ReasoningEffortResolver:

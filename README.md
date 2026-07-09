@@ -1,29 +1,35 @@
 # Codex Model Proxy
 
-Local OpenAI Responses-compatible proxy for using subscription-backed local model runners from Codex.
+Local OpenAI Responses-compatible proxy for using subscription-backed and API-backed model runners from Codex.
 
-The first backend is Claude Code through the installed `claude` terminal command. The repo is intentionally structured so other local providers can be added later without rewriting the Codex-facing API, model picker metadata, active-model switcher, or MCP control server.
+The proxy currently supports three backend families:
 
-This project does not use the Claude Agent SDK. It invokes the local terminal command as the current user, parses the command output, and exposes the endpoints Codex expects from a model provider.
+- Claude Code through the installed `claude` terminal command.
+- OpenAI models through the upstream OpenAI Responses API.
+- Gemini models through the installed `gemini` terminal command.
+
+The repo is structured so more providers can be added without rewriting the Codex-facing API, model picker metadata, active-route switcher, or MCP control server.
+
+This project does not use the Claude Agent SDK. For CLI-backed providers, it invokes local terminal commands as the current user, parses command output, and exposes the endpoints Codex expects from a model provider.
 
 ## Why This Exists
 
-Codex already knows how to drive an agentic coding workflow: it owns the workspace, runs shell commands, edits files, asks for approvals, respects sandbox settings, and integrates with the Mac app. Claude Code already knows how to talk to Claude models through your local terminal subscription. The missing piece is a clean bridge between those two worlds.
+Codex already knows how to drive an agentic coding workflow: it owns the workspace, runs shell commands, edits files, asks for approvals, respects sandbox settings, and integrates with the Mac app. Other model runners already know how to reach their own models through terminal subscriptions or provider APIs. The missing piece is a clean bridge between those worlds.
 
 `codex-model-proxy` is that bridge. It lets Codex keep acting like Codex while the model response can come from a local subscription-backed runner.
 
-That matters because a naive Claude integration can accidentally move the tool-running boundary into Claude Code itself. This repo deliberately avoids that. Claude Code's local tools are disabled for proxied requests, and Codex remains the only thing that runs commands, reads files through tools, edits files, asks for approvals, and applies patches.
+That matters because a naive CLI-agent integration can accidentally move the tool-running boundary into the backend runner. This repo deliberately avoids that. Codex remains the thing that runs commands, reads files through tools, edits files, asks for approvals, and applies patches. The backend supplies model text; Codex performs the actions.
 
 ## Why It Is Useful
 
-- Use Claude Code models from the Codex CLI or Mac app through a local provider.
+- Use Claude Code, OpenAI, or Gemini models from the Codex CLI or Mac app through one local provider.
 - Keep Codex's approvals, sandboxing, tool loops, and Mac app behavior intact.
-- Switch between configured backend models without restarting Codex.
+- Switch between configured backend providers and models without restarting Codex.
 - Keep the proxy local on `127.0.0.1` with a bearer token.
-- Add future local/subscription providers behind the same Codex-facing API.
+- Add future local, subscription, or API providers behind the same Codex-facing API.
 - Control the proxy from Codex through generic MCP tools such as `list_models` and `switch_model`.
 
-The practical goal is not just "curl returns text." The useful target is: Codex can chat, review code, call tools, and edit files while the model answer comes from a local backend such as Claude Code.
+The practical goal is not just "curl returns text." The useful target is: Codex can chat, review code, call tools, and edit files while the model answer comes from the active backend route.
 
 ## Mental Model
 
@@ -34,28 +40,39 @@ model_provider = "claude_code_cli_proxy"
 model = "claude"
 ```
 
-The proxy sees that stable `claude` model and resolves it to the active backend model:
+The proxy sees that stable `claude` model and resolves it to the active backend route:
 
 ```text
-claude -> sonnet
-claude -> opus
-claude -> fable
-claude -> haiku
+claude -> claude:opus
+claude -> claude:sonnet
+claude -> openai:gpt-5.5
+claude -> gemini:gemini-3-pro
 ```
 
-That means Codex can stay configured to one stable model while you switch the real backend model through:
+The default stable model slug is still `claude` so existing Codex config keeps working. Internally, active routes are canonical provider-qualified IDs:
+
+```text
+claude:opus
+claude:sonnet
+openai:gpt-5.5
+gemini:gemini-3-pro
+```
+
+Friendly aliases resolve to those routes. That means Codex can stay configured to one stable model while you switch the real backend through:
 
 ```bash
 .venv/bin/codex-model-proxyctl opus
 .venv/bin/codex-model-proxyctl sonnet
-.venv/bin/codex-model-proxyctl fable
-.venv/bin/codex-model-proxyctl haiku
+.venv/bin/codex-model-proxyctl gpt
+.venv/bin/codex-model-proxyctl gemini
 ```
 
 or through the MCP tool:
 
 ```text
 switch model to opus
+switch model to gpt
+switch provider to gemini
 ```
 
 ## Quick Start
@@ -134,6 +151,8 @@ Switch backend models:
 ```bash
 PROXY_API_KEY=local-dev-key .venv/bin/codex-model-proxyctl opus
 PROXY_API_KEY=local-dev-key .venv/bin/codex-model-proxyctl sonnet
+PROXY_API_KEY=local-dev-key .venv/bin/codex-model-proxyctl openai:gpt-5.5
+PROXY_API_KEY=local-dev-key .venv/bin/codex-model-proxyctl gemini:gemini-3-pro
 ```
 
 Use Codex normally. The next Codex request using `model = "claude"` will resolve to the newly active backend model.
@@ -143,6 +162,8 @@ If the MCP control server is configured, you can also ask Codex:
 ```text
 list proxy models
 switch model to opus
+switch model to gpt
+switch provider to gemini
 show model proxy status
 start the model proxy
 ```
@@ -162,8 +183,8 @@ Verified locally:
 - Unit tests pass.
 - `GET /health` works.
 - `GET /v1/models?client_version=0.143.0` returns OpenAI and Codex model catalog shapes.
-- `POST /v1/responses` works through the local Claude Code CLI backend.
-- The optional MCP server exposes generic proxy-control tools.
+- `POST /v1/responses` is covered with mocked Claude/OpenAI/Gemini routing tests.
+- The optional MCP server exposes generic proxy-control tools, including provider switching.
 
 ## What This Enables
 
@@ -173,14 +194,14 @@ With that provider active:
 
 - Codex asks this proxy for model metadata via `/v1/models`.
 - Codex sends OpenAI Responses API requests to `/v1/responses`.
-- The proxy forwards the normalized request to the active local backend model.
+- The proxy forwards the normalized request to the active backend route.
 - The backend response is converted back into a Codex-compatible Responses object.
 - Codex remains the tool runner for shell commands, file edits, approvals, sandboxing, and Mac app behavior.
-- A generic MCP server can list backend models, switch the active backend model, show status, and start the proxy.
+- A generic MCP server can list backend routes, switch the active backend model/provider, show status, and start the proxy.
 
-The stable Codex-facing model is currently `claude`. The proxy resolves that stable model to whichever backend model is active, such as `fable`, `opus`, `sonnet`, `haiku`, `claude-fable-5`, `claude-opus-4-8`, `claude-sonnet-5`, or `claude-haiku-4-5`.
+The stable Codex-facing model is currently `claude`. The proxy resolves that stable model to whichever backend route is active, such as `claude:opus`, `claude:sonnet`, `openai:gpt-5.5`, or `gemini:gemini-3-pro`.
 
-The short names are Claude Code latest-model aliases. Claude Code itself resolves `fable`, `opus`, `sonnet`, and `haiku` to the latest available model in that family. The concrete IDs are included for cases where you want an explicit fixed model instead of an alias.
+Short names are aliases. For example, `opus` resolves to `claude:opus`, `gpt` resolves to `openai:gpt-5.5`, and `gemini` resolves to `gemini:gemini-3-pro`.
 
 ## Architecture
 
@@ -191,7 +212,9 @@ flowchart LR
   Proxy["codex-model-proxy"]
   Registry["Provider registry"]
   Claude["Claude Code CLI backend"]
-  Future["Future local provider"]
+  OpenAI["OpenAI Responses backend"]
+  Gemini["Gemini CLI backend"]
+  Future["Future provider"]
   Tools["Codex tools, approvals, sandbox"]
   Mcp["model-proxy-control MCP"]
 
@@ -200,8 +223,12 @@ flowchart LR
   Codex -->|POST /v1/responses| Proxy
   Proxy --> Registry
   Registry --> Claude
+  Registry --> OpenAI
+  Registry --> Gemini
   Registry -. later .-> Future
   Claude -->|JSON output| Proxy
+  OpenAI -->|Responses object| Proxy
+  Gemini -->|JSON output| Proxy
   Proxy -->|Responses object / SSE| Codex
   Codex --> Tools
   Codex --> Mcp
@@ -214,35 +241,41 @@ The generic layers are:
 
 - `codex_model_proxy.server`: FastAPI app, auth, `/health`, `/admin/model`, `/v1/models`, `/v1/responses`.
 - `codex_model_proxy.responses`: Responses bridge, transcript store, streaming event shape, tool-call adapter.
-- `codex_model_proxy.active_model`: provider-aware active backend model store.
+- `codex_model_proxy.active_model`: active backend route store.
 - `codex_model_proxy.model_cli`: generic terminal switcher, installed as `codex-model-proxyctl`.
 - `codex_model_proxy.mcp_server`: generic stdio MCP control server.
 - `codex_model_proxy.providers.base`: provider dataclasses.
-- `codex_model_proxy.providers.registry`: selected provider lookup.
+- `codex_model_proxy.providers.registry`: provider catalog, route aliases, and model resolution.
 - `codex_model_proxy.providers.claude_code`: Claude Code provider spec.
+- `codex_model_proxy.providers.openai_responses`: OpenAI provider spec.
+- `codex_model_proxy.providers.gemini_cli`: Gemini CLI provider spec.
 - `codex_model_proxy.claude_cli`: Claude Code CLI backend runner.
+- `codex_model_proxy.openai_responses`: OpenAI Responses backend runner.
+- `codex_model_proxy.gemini_cli`: Gemini CLI backend runner.
+- `codex_model_proxy.model_clients`: route dispatcher from provider-qualified IDs to backend runners.
 
 To add another provider later:
 
 1. Add a provider spec/factory under `src/codex_model_proxy/providers/`.
 2. Register it in `ProviderRegistry`.
 3. Add a model runner client with a `complete(prompt, model, ...)` method.
-4. Wire the runner in `make_model_client()` in `server.py`.
+4. Wire the runner in `RoutedModelClient`.
 5. Add tests for model resolution, catalog output, and a mocked completion.
 
 The API and MCP layers should not need provider-specific logic except the runner factory.
 
 ## Important Boundary
 
-This proxy does not certify subscription, licensing, or terms questions. It only invokes local model commands as the current user.
+This proxy does not certify subscription, licensing, or terms questions. It only invokes configured local model commands as the current user or calls configured provider APIs with credentials you provide.
 
-For Claude Code, terminal tools are disabled for proxy calls with `--tools ""`. That is deliberate: Codex should run shell commands, file edits, approvals, and sandboxed workflows. The backend supplies the model response; Codex performs the actions.
+For Claude Code, terminal tools are disabled for proxy calls with `--tools ""`. Gemini CLI is run in non-interactive default approval mode, which excludes tools that require prompts such as shell/edit/write/web-fetch in the installed Gemini CLI tested here. The prompt also tells every backend to ask Codex for tools through the proxy XML protocol. That is deliberate: Codex should run shell commands, file edits, approvals, and sandboxed workflows. The backend supplies the model response; Codex performs the actions.
 
 ## Requirements
 
 - Python 3.10 or newer.
-- For the current backend: Claude Code CLI installed as `claude`.
-- Claude CLI already authenticated locally.
+- For Claude routes: Claude Code CLI installed as `claude` and authenticated locally.
+- For OpenAI routes: `OPENAI_API_KEY` set in the proxy process environment.
+- For Gemini routes: Gemini CLI installed as `gemini` and authenticated locally, or configured with Gemini/Vertex credentials.
 - Codex configured to use a local Responses provider.
 
 Check Claude auth:
@@ -257,6 +290,21 @@ Check the installed Claude command:
 ```bash
 which claude
 claude --version
+```
+
+Check OpenAI auth:
+
+```bash
+export OPENAI_API_KEY="sk-..."
+curl -s https://api.openai.com/v1/models \
+  -H "Authorization: Bearer $OPENAI_API_KEY"
+```
+
+Check Gemini auth:
+
+```bash
+gemini
+gemini -p "auth test" --output-format json
 ```
 
 ## Install
@@ -297,21 +345,31 @@ http://127.0.0.1:8000
 | `PROXY_API_KEY` | `local-dev-key` | Bearer token expected by `/v1/*` and `/admin/*`. Set empty to disable auth. |
 | `HOST` | `127.0.0.1` | Host used by `codex-model-proxy`. |
 | `PORT` | `8000` | Port used by `codex-model-proxy`. |
-| `MODEL_PROXY_BACKEND` | `claude_code` | Selected backend provider ID. |
+| `MODEL_PROXY_BACKEND` | `claude_code` | Default provider used when no active model file exists. Available providers: `claude_code`, `openai_responses`, `gemini_cli`. |
+| `MODEL_PROXY_ENABLED_PROVIDERS` | unset | Optional comma-separated allow list of provider IDs. When unset, all built-in providers are enabled. |
 | `MODEL_PROXY_PROVIDER_ID` | `claude_code_cli_proxy` | Codex provider label returned by control tools. |
-| `MODEL_PROXY_DISPLAY_NAME` | `Claude` | Display name for the stable Codex-facing model. |
+| `MODEL_PROXY_DISPLAY_NAME` | `Model Proxy` | Display name for the stable Codex-facing model. |
 | `MODEL_PROXY_STABLE_MODEL` | `claude` | Stable Codex-facing model slug. |
-| `MODEL_PROXY_DEFAULT_MODEL` | `opus` | Backend model used when no active model file is present. This uses Claude Code's latest Opus alias. |
+| `MODEL_PROXY_DEFAULT_MODEL` | unset | Optional default route or alias used when no active model file is present. Examples: `opus`, `openai:gpt-5.5`, `gemini`. |
 | `MODEL_PROXY_ACTIVE_MODEL_FILE` | `~/.codex/model-proxy-active-model` | Generic active backend model file. |
-| `MODEL_PROXY_MODELS` | `fable,opus,sonnet,haiku,claude-fable-5,claude-opus-4-8,claude-sonnet-5,claude-haiku-4-5,claude-haiku-4-5-20251001` | Backend models advertised by the current provider. Aliases are listed first. |
+| `CLAUDE_MODELS` | `fable,opus,sonnet,haiku,claude-fable-5,claude-opus-4-8,claude-sonnet-5,claude-haiku-4-5,claude-haiku-4-5-20251001` | Claude backend models. |
+| `OPENAI_MODELS` | `gpt-5.5,gpt-5.4-mini,gpt-5.3-codex-spark` | OpenAI backend models. |
+| `GEMINI_MODELS` | `gemini-3-pro,gemini-2.5-pro,gemini-2.5-flash` | Gemini backend models. |
 | `CLAUDE_COMMAND` | `claude` | Claude Code CLI command to execute for the current backend. |
 | `CLAUDE_TIMEOUT_SECONDS` | `300` | Subprocess timeout for each Claude request. |
 | `CLAUDE_SAFE_MODE` | `1` | Adds `--safe-mode` to Claude CLI invocations. |
 | `CLAUDE_PERMISSION_MODE` | `dontAsk` | Permission mode passed to Claude CLI. |
 | `CLAUDE_CWD` | server process cwd | Working directory for Claude CLI subprocesses. |
 | `CLAUDE_DEFAULT_MODEL` | `opus` | Backward-compatible default model override for the Claude backend. |
-| `CLAUDE_ACTIVE_MODEL_FILE` | unset | Backward-compatible active-model file override for the Claude backend. |
-| `CLAUDE_MODELS` | unset | Backward-compatible model list override for the Claude backend. |
+| `OPENAI_API_KEY` | unset | API key used by OpenAI backend routes. |
+| `MODEL_PROXY_OPENAI_API_KEY` | unset | Alternate API key env var for OpenAI backend routes. |
+| `OPENAI_BASE_URL` | `https://api.openai.com/v1` | Upstream OpenAI-compatible Responses API base URL. |
+| `OPENAI_TIMEOUT_SECONDS` | `300` | Request timeout for OpenAI backend routes. |
+| `GEMINI_COMMAND` | `gemini` | Gemini CLI command to execute for Gemini backend routes. |
+| `GEMINI_TIMEOUT_SECONDS` | `300` | Subprocess timeout for each Gemini request. |
+| `GEMINI_CWD` | server process cwd | Working directory for Gemini CLI subprocesses. |
+| `GEMINI_APPROVAL_MODE` | `default` | Approval mode passed to Gemini CLI. Keep `default` unless you intentionally want Gemini CLI tools enabled. |
+| `GEMINI_EXTENSIONS` | `none` | Extensions passed to Gemini CLI. Defaults to `none` to keep the backend quiet and Codex-centered. |
 | `RESPONSE_TTL_SECONDS` | `3600` | In-memory response/session retention. |
 | `MODEL_PROXY_BASE_URL` | `http://127.0.0.1:8000` | Proxy base URL used by the CLI/MCP control tools. |
 | `MODEL_PROXY_API_KEY` | `local-dev-key` | Bearer token used by the CLI/MCP control tools. |
@@ -433,6 +491,10 @@ PROXY_API_KEY=local-dev-key .venv/bin/codex-model-proxyctl opus
 PROXY_API_KEY=local-dev-key .venv/bin/codex-model-proxyctl fable
 PROXY_API_KEY=local-dev-key .venv/bin/codex-model-proxyctl haiku
 PROXY_API_KEY=local-dev-key .venv/bin/codex-model-proxyctl claude-opus-4-8
+PROXY_API_KEY=local-dev-key .venv/bin/codex-model-proxyctl openai:gpt-5.5
+PROXY_API_KEY=local-dev-key .venv/bin/codex-model-proxyctl gpt
+PROXY_API_KEY=local-dev-key .venv/bin/codex-model-proxyctl gemini:gemini-3-pro
+PROXY_API_KEY=local-dev-key .venv/bin/codex-model-proxyctl gemini
 ```
 
 Show current and available backend models:
@@ -453,9 +515,18 @@ curl -s http://127.0.0.1:8000/admin/model \
   -d '{"model":"opus"}'
 ```
 
+The HTTP/MCP switch accepts route IDs and aliases:
+
+```text
+opus -> claude:opus
+sonnet -> claude:sonnet
+gpt -> openai:gpt-5.5
+gemini -> gemini:gemini-3-pro
+```
+
 ## Reasoning Effort
 
-Codex sends reasoning settings in the Responses request. The proxy translates those settings into Claude Code's `--effort` flag.
+Codex sends reasoning settings in the Responses request. The proxy translates those settings into backend-specific controls where supported.
 
 Mapping:
 
@@ -480,6 +551,8 @@ If it is changed to Extra High, the proxy should invoke:
 --effort xhigh
 ```
 
+OpenAI routes receive `reasoning.effort` for `low`, `medium`, and `high`; `xhigh` and `max` are clamped to `high`. Gemini CLI routes currently ignore the effort value because the local CLI does not expose an equivalent stable flag.
+
 ## Optional MCP Control Server
 
 The repo ships a local stdio MCP server. It does not replace the Responses proxy; it gives Codex tools for controlling the local proxy while Codex is running.
@@ -498,6 +571,7 @@ Tools:
 - `model_proxy_status`
 - `list_models`
 - `switch_model`
+- `switch_provider`
 - `start_model_proxy`
 
 Add this user-level block to `~/.codex/config.toml`:
@@ -526,6 +600,9 @@ approval_mode = "approve"
 [mcp_servers.model_proxy_control.tools.switch_model]
 approval_mode = "approve"
 
+[mcp_servers.model_proxy_control.tools.switch_provider]
+approval_mode = "approve"
+
 [mcp_servers.model_proxy_control.tools.start_model_proxy]
 approval_mode = "prompt"
 ```
@@ -537,6 +614,8 @@ Examples you can ask:
 ```text
 list proxy models
 switch model to opus
+switch model to openai:gpt-5.5
+switch provider to gemini
 show model proxy status
 start the model proxy
 ```
@@ -561,14 +640,42 @@ The prompt is sent through stdin. The proxy expects Claude to return JSON events
 
 `--tools ""` keeps Claude Code's own filesystem and shell tools disabled so Codex remains the only tool runner.
 
+## OpenAI Backend Details
+
+For each OpenAI route, the backend sends a normal upstream Responses API request:
+
+```text
+POST $OPENAI_BASE_URL/responses
+Authorization: Bearer $OPENAI_API_KEY
+```
+
+The proxy sends the built prompt as string `input`, uses the resolved backend model such as `gpt-5.5`, and returns the upstream `output_text` through the local Codex-compatible Responses object.
+
+OpenAI routes require `OPENAI_API_KEY` or `MODEL_PROXY_OPENAI_API_KEY` in the proxy process environment. They do not automatically reuse the Codex app's ChatGPT login.
+
+## Gemini CLI Backend Details
+
+For each Gemini route, the backend runs:
+
+```bash
+gemini \
+  --model "<resolved-backend-model>" \
+  --approval-mode default \
+  --output-format json \
+  --extensions none \
+  --prompt "<proxy-built prompt>"
+```
+
+The proxy expects Gemini CLI JSON output with a `response` field. The installed Gemini CLI tested here excludes interactive tools in non-interactive default approval mode, and the prompt still instructs Gemini to request Codex tools through the proxy XML protocol.
+
 ## How Responses Bridging Works
 
 1. Codex sends a Responses request to `/v1/responses`.
-2. The proxy resolves the requested model through the selected provider.
+2. The proxy resolves the requested model to a provider-qualified route.
 3. The proxy normalizes `instructions`, string input, message-list input, and `function_call_output` items.
 4. If `previous_response_id` is present, the proxy loads the previous transcript from memory.
 5. If Codex includes `tools`, the proxy describes those tools to the backend using a strict XML protocol.
-6. The selected backend model runner receives the complete prompt.
+6. The selected backend runner receives the complete prompt.
 7. If the backend returns normal text, the proxy returns a Responses `message` output item.
 8. If the backend requests a tool using the XML protocol, the proxy returns a Responses `function_call` item.
 9. Codex executes the tool itself and sends the result back as `function_call_output`.
@@ -597,18 +704,21 @@ Manual app test:
 2. Confirm `~/.codex/config.toml` points Codex at `model_provider = "claude_code_cli_proxy"` and `model = "claude"`.
 3. Restart the Codex Mac app.
 4. Ask: `Reply with exactly: mac-app-ok`.
-5. Test a tool loop in a throwaway repo: `Inspect the current directory and summarize the files.`
+5. Ask through MCP: `switch model to gpt`, then ask `what model are you?`
+6. Ask through MCP: `switch provider to gemini`, then ask `what model are you?`
+7. Test a tool loop in a throwaway repo: `Inspect the current directory and summarize the files.`
 
-The key validation is that Codex asks for and runs tools itself, rather than Claude Code running local tools directly.
+The key validation is that Codex asks for and runs tools itself, rather than the backend runner operating on local files directly.
 
 ## Known Limitations
 
-- The Claude model list is configured by `MODEL_PROXY_MODELS` or `CLAUDE_MODELS`, not dynamically discovered from Claude CLI.
+- Model lists are configured by `CLAUDE_MODELS`, `OPENAI_MODELS`, and `GEMINI_MODELS`, not dynamically discovered.
 - The proxy process must be running before Codex can fetch proxy model metadata.
 - Session continuity is in memory only. Restarting the proxy clears `previous_response_id` history.
 - Streaming is compatibility streaming, not true token-by-token streaming from the backend.
 - The tool-call adapter supports one function call at a time.
-- Claude CLI behavior may change across versions, so `claude --print --output-format json` should be included in smoke testing after upgrades.
+- CLI behavior may change across versions, so `claude --print --output-format json` and `gemini -p "test" --output-format json` should be included in smoke testing after upgrades.
+- OpenAI routes require an API key in the proxy environment; the proxy does not borrow Codex app credentials.
 - This is local development software, not a hosted multi-user service.
 
 ## Troubleshooting
@@ -647,6 +757,30 @@ Increase:
 
 ```bash
 export CLAUDE_TIMEOUT_SECONDS=600
+```
+
+### `OPENAI_API_KEY is required`
+
+Set an OpenAI API key in the shell or LaunchAgent that starts the proxy:
+
+```bash
+export OPENAI_API_KEY="sk-..."
+```
+
+Then restart the proxy.
+
+### `Gemini CLI command not found`
+
+Check:
+
+```bash
+which gemini
+```
+
+If needed, set:
+
+```bash
+export GEMINI_COMMAND=/absolute/path/to/gemini
 ```
 
 ### Codex model picker does not show proxy models
