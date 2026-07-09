@@ -5,8 +5,8 @@ import os
 from .base import ProviderModel, ProviderSpec
 
 
-DEFAULT_OPENAI_MODEL = "gpt-5.5"
-DEFAULT_OPENAI_MODELS = ",".join(
+DEFAULT_OPENAI_CODEX_MODEL = "gpt-5.5"
+DEFAULT_OPENAI_CODEX_MODELS = ",".join(
     [
         "gpt-5.5",
         "gpt-5.4-mini",
@@ -15,28 +15,27 @@ DEFAULT_OPENAI_MODELS = ",".join(
 )
 
 
-class OpenAIResponsesProviderFactory:
-    backend_id = "openai_responses"
+class OpenAICodexCliProviderFactory:
+    backend_id = "openai_codex_cli"
 
     def from_env(self) -> ProviderSpec:
         return ProviderSpec(
             backend_id=self.backend_id,
             route_prefix="openai",
-            display_name=os.getenv("OPENAI_PROXY_DISPLAY_NAME", "OpenAI"),
-            default_model=os.getenv("OPENAI_DEFAULT_MODEL", DEFAULT_OPENAI_MODEL),
+            display_name=os.getenv("OPENAI_CODEX_PROXY_DISPLAY_NAME", "OpenAI"),
+            default_model=os.getenv("OPENAI_CODEX_DEFAULT_MODEL", DEFAULT_OPENAI_CODEX_MODEL),
             models=self._models_from_env(),
-            owned_by="openai",
-            catalog_description="OpenAI model accessed through the upstream Responses API.",
-            comp_hash="openai-responses-proxy-v1",
-            runner_description="OpenAI Responses API",
-            requires_auth_env=("OPENAI_API_KEY",),
+            owned_by="openai-codex-cli",
+            catalog_description="OpenAI model accessed through the local Codex CLI proxy.",
+            comp_hash="openai-codex-cli-proxy-v1",
+            runner_description="local codex CLI",
         )
 
     def _models_from_env(self) -> tuple[ProviderModel, ...]:
-        raw_names = os.getenv("OPENAI_MODELS", DEFAULT_OPENAI_MODELS)
+        raw_names = os.getenv("OPENAI_CODEX_MODELS", DEFAULT_OPENAI_CODEX_MODELS)
         names = [name.strip() for name in raw_names.split(",") if name.strip()]
         if not names:
-            names = [DEFAULT_OPENAI_MODEL]
+            names = [DEFAULT_OPENAI_CODEX_MODEL]
         return tuple(
             ProviderModel(
                 slug=name,

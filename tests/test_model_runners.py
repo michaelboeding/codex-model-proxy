@@ -1,60 +1,36 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from codex_model_proxy.antigravity_cli import AntigravityCliClient
 from codex_model_proxy.cursor_agent import CursorAgentClient
 from codex_model_proxy.gemini_cli import GeminiCliClient
 from codex_model_proxy.grok_cli import GrokCliClient
 from codex_model_proxy.headless_cli import HeadlessCliClient
-from codex_model_proxy.openai_responses import OpenAIResponsesClient
+from codex_model_proxy.openai_codex_cli import OpenAICodexCliClient
 
 
-def test_openai_payload_maps_extra_high_effort_to_high() -> None:
-    payload = OpenAIResponsesClient._build_payload(
-        "hello",
+def test_openai_codex_cli_build_args_uses_subscription_cli_without_user_config() -> None:
+    client = OpenAICodexCliClient(command="codex", cwd=".", timeout_seconds=1)
+
+    args = client._build_args("hello", "gpt-5.5", effort="xhigh", output_file=Path("/tmp/final.txt"))
+
+    assert args == [
+        "codex",
+        "exec",
+        "--ignore-user-config",
+        "--ephemeral",
+        "--skip-git-repo-check",
+        "--sandbox",
+        "read-only",
+        "-c",
+        'model_reasoning_effort="xhigh"',
+        "--model",
         "gpt-5.5",
-        max_output_tokens=100,
-        temperature=0.2,
-        top_p=0.9,
-        effort="xhigh",
-    )
-
-    assert payload == {
-        "model": "gpt-5.5",
-        "input": "hello",
-        "max_output_tokens": 100,
-        "temperature": 0.2,
-        "top_p": 0.9,
-        "reasoning": {"effort": "high"},
-    }
-
-
-def test_openai_text_from_response_uses_output_text_first() -> None:
-    text = OpenAIResponsesClient._text_from_response(
-        {
-            "output_text": "hi",
-            "output": [],
-        }
-    )
-
-    assert text == "hi"
-
-
-def test_openai_text_from_response_falls_back_to_message_parts() -> None:
-    text = OpenAIResponsesClient._text_from_response(
-        {
-            "output": [
-                {
-                    "type": "message",
-                    "content": [
-                        {"type": "output_text", "text": "hello "},
-                        {"type": "output_text", "text": "there"},
-                    ],
-                }
-            ]
-        }
-    )
-
-    assert text == "hello there"
+        "--output-last-message",
+        "/tmp/final.txt",
+        "hello",
+    ]
 
 
 def test_gemini_build_args_uses_noninteractive_json_with_default_approval() -> None:

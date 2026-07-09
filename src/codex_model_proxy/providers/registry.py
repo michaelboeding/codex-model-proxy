@@ -9,14 +9,14 @@ from .claude_code import ClaudeCodeProviderFactory
 from .cursor_agent import CursorAgentProviderFactory
 from .gemini_cli import GeminiCliProviderFactory
 from .grok_cli import GrokCliProviderFactory
-from .openai_responses import OpenAIResponsesProviderFactory
+from .openai_codex_cli import OpenAICodexCliProviderFactory
 
 
 class ProviderRegistry:
     def __init__(self, factories: dict[str, Callable[[], ProviderSpec]] | None = None) -> None:
         self._factories = factories or {
             ClaudeCodeProviderFactory.backend_id: ClaudeCodeProviderFactory().from_env,
-            OpenAIResponsesProviderFactory.backend_id: OpenAIResponsesProviderFactory().from_env,
+            OpenAICodexCliProviderFactory.backend_id: OpenAICodexCliProviderFactory().from_env,
             GeminiCliProviderFactory.backend_id: GeminiCliProviderFactory().from_env,
             AntigravityCliProviderFactory.backend_id: AntigravityCliProviderFactory().from_env,
             GrokCliProviderFactory.backend_id: GrokCliProviderFactory().from_env,

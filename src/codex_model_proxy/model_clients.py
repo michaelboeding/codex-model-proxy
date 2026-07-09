@@ -8,7 +8,7 @@ from .cursor_agent import CursorAgentClient
 from .errors import ModelBackendError
 from .gemini_cli import GeminiCliClient
 from .grok_cli import GrokCliClient
-from .openai_responses import OpenAIResponsesClient
+from .openai_codex_cli import OpenAICodexCliClient
 from .providers.registry import ProviderRegistry
 
 
@@ -40,7 +40,7 @@ class RoutedModelClient:
         self.registry = registry or ProviderRegistry()
         self.clients = clients or {
             "claude_code": ClaudeCliClient(),
-            "openai_responses": OpenAIResponsesClient(),
+            "openai_codex_cli": OpenAICodexCliClient(),
             "gemini_cli": GeminiCliClient(),
             "antigravity_cli": AntigravityCliClient(),
             "grok_cli": GrokCliClient(),

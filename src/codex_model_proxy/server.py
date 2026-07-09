@@ -265,6 +265,8 @@ async def responses(request: Request):
 def backend_command_for(backend_id: str) -> str | None:
     if backend_id == "claude_code":
         return os.getenv("CLAUDE_COMMAND", "claude")
+    if backend_id == "openai_codex_cli":
+        return os.getenv("OPENAI_CODEX_COMMAND", os.getenv("CODEX_COMMAND", "codex"))
     if backend_id == "gemini_cli":
         return os.getenv("GEMINI_COMMAND", "gemini")
     if backend_id == "antigravity_cli":

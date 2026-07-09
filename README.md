@@ -19,7 +19,7 @@ Codex still owns the coding workflow. It runs shell commands, edits files, asks 
 | Provider | Default route | Useful aliases | How it connects | Setup needed |
 | --- | --- | --- | --- | --- |
 | Claude Code | `claude:opus` | `opus`, `sonnet`, `haiku`, `fable` | Local `claude` CLI | `claude auth login` |
-| OpenAI | `openai:gpt-5.5` | `gpt`, `openai`, `chatgpt`, `mini`, `spark` | OpenAI Responses API | `OPENAI_API_KEY` in the proxy environment |
+| OpenAI | `openai:gpt-5.5` | `gpt`, `openai`, `chatgpt`, `mini`, `spark` | Local `codex` CLI | Codex CLI logged in with your subscription |
 | Gemini CLI | `gemini:gemini-3-pro` | `gemini`, `gemini-pro`, `flash` | Local `gemini` CLI | Gemini CLI auth or API/Vertex credentials |
 | Antigravity | `antigravity:gemini-3.5-flash-medium` | `antigravity`, `antigravity-pro`, `antigravity-flash` | Local `agy` CLI | Antigravity subscription login |
 | Grok | `grok:grok-4.5` | `grok`, `xai`, `grok-latest` | Local `grok` CLI | `grok login` plus credits/subscription |
@@ -32,7 +32,7 @@ The provider list is config-driven. Built-in catalogs cover the model lists we c
 | Provider | Built-in catalog source |
 | --- | --- |
 | Claude Code | Aliases and full model-name behavior documented by `claude --help`; defaults include `fable`, `opus`, `sonnet`, `haiku`, and their latest full names. |
-| OpenAI | Static Responses API defaults because available API models depend on the key/account; override with `OPENAI_MODELS` for your account. |
+| OpenAI | Static Codex CLI defaults because Codex model availability depends on your signed-in Codex account; override with `OPENAI_CODEX_MODELS` if your CLI exposes a different set. |
 | Gemini CLI | Static Gemini CLI defaults because this CLI exposes `--model` but not a local model catalog command in the tested install. |
 | Antigravity | Mirrors the local `agy models` output. |
 | Grok | Mirrors the local `grok models` output. |
@@ -86,12 +86,6 @@ grok login
 cursor-agent login
 gemini
 agy
-```
-
-For OpenAI routes, put an API key in the environment used to start the proxy:
-
-```bash
-export OPENAI_API_KEY="sk-..."
 ```
 
 ### 3. Create a local token helper
@@ -234,7 +228,7 @@ flowchart LR
   Proxy["codex-model-proxy"]
   Registry["Provider registry"]
   Claude["Claude Code CLI backend"]
-  OpenAI["OpenAI Responses backend"]
+  OpenAI["OpenAI Codex CLI backend"]
   Gemini["Gemini CLI backend"]
   Antigravity["Antigravity CLI backend"]
   Grok["Grok CLI backend"]
@@ -255,7 +249,7 @@ flowchart LR
   Registry --> Cursor
   Registry -. later .-> Future
   Claude -->|JSON output| Proxy
-  OpenAI -->|Responses object| Proxy
+  OpenAI -->|text output| Proxy
   Gemini -->|JSON output| Proxy
   Antigravity -->|JSON/text output| Proxy
   Grok -->|JSON/text output| Proxy
@@ -278,13 +272,13 @@ The generic layers are:
 - `codex_model_proxy.providers.base`: provider dataclasses.
 - `codex_model_proxy.providers.registry`: provider catalog, route aliases, and model resolution.
 - `codex_model_proxy.providers.claude_code`: Claude Code provider spec.
-- `codex_model_proxy.providers.openai_responses`: OpenAI provider spec.
+- `codex_model_proxy.providers.openai_codex_cli`: OpenAI Codex CLI provider spec.
 - `codex_model_proxy.providers.gemini_cli`: Gemini CLI provider spec.
 - `codex_model_proxy.providers.antigravity_cli`: Antigravity CLI provider spec.
 - `codex_model_proxy.providers.grok_cli`: Grok CLI provider spec.
 - `codex_model_proxy.providers.cursor_agent`: Cursor Agent CLI provider spec.
 - `codex_model_proxy.claude_cli`: Claude Code CLI backend runner.
-- `codex_model_proxy.openai_responses`: OpenAI Responses backend runner.
+- `codex_model_proxy.openai_codex_cli`: OpenAI Codex CLI backend runner.
 - `codex_model_proxy.gemini_cli`: Gemini CLI backend runner.
 - `codex_model_proxy.antigravity_cli`: Antigravity CLI backend runner.
 - `codex_model_proxy.grok_cli`: Grok CLI backend runner.
@@ -304,7 +298,7 @@ The API and MCP layers should not need provider-specific logic except the runner
 
 ## Important Boundary
 
-This proxy does not certify subscription, licensing, or terms questions. It only invokes configured local model commands as the current user or calls configured provider APIs with credentials you provide.
+This proxy does not certify subscription, licensing, or terms questions. It only invokes configured local model commands as the current user.
 
 For Claude Code, terminal tools are disabled for proxy calls with `--tools ""`. Gemini CLI is run in non-interactive default approval mode, which excludes tools that require prompts such as shell/edit/write/web-fetch in the installed Gemini CLI tested here. Grok, Cursor, and Antigravity are invoked without force/auto-approve flags by default. The prompt also tells every backend to ask Codex for tools through the proxy XML protocol. That is deliberate: Codex should run shell commands, file edits, approvals, and sandboxed workflows. The backend supplies the model response; Codex performs the actions.
 
@@ -312,7 +306,7 @@ For Claude Code, terminal tools are disabled for proxy calls with `--tools ""`. 
 
 - Python 3.10 or newer.
 - For Claude routes: Claude Code CLI installed as `claude` and authenticated locally.
-- For OpenAI routes: `OPENAI_API_KEY` set in the proxy process environment.
+- For OpenAI routes: Codex CLI installed as `codex` and logged in locally.
 - For Gemini routes: Gemini CLI installed as `gemini` and authenticated locally, or configured with Gemini/Vertex credentials.
 - For Antigravity routes: Antigravity CLI installed as `agy` and authenticated locally with the subscription-backed login you want to use.
 - For Grok routes: Grok CLI installed as `grok`, authenticated locally, and backed by credits or a subscription.
@@ -333,12 +327,11 @@ which claude
 claude --version
 ```
 
-Check OpenAI auth:
+Check OpenAI/Codex auth:
 
 ```bash
-export OPENAI_API_KEY="sk-..."
-curl -s https://api.openai.com/v1/models \
-  -H "Authorization: Bearer $OPENAI_API_KEY"
+codex exec --ignore-user-config --ephemeral --skip-git-repo-check --sandbox read-only \
+  --model gpt-5.5 "Reply with exactly: auth test"
 ```
 
 Check Gemini auth:
@@ -415,7 +408,7 @@ http://127.0.0.1:8000
 | `PROXY_API_KEY` | `local-dev-key` | Bearer token expected by `/v1/*` and `/admin/*`. Set empty to disable auth. |
 | `HOST` | `127.0.0.1` | Host used by `codex-model-proxy`. |
 | `PORT` | `8000` | Port used by `codex-model-proxy`. |
-| `MODEL_PROXY_BACKEND` | `claude_code` | Default provider used when no active model file exists. Available providers: `claude_code`, `openai_responses`, `gemini_cli`, `antigravity_cli`, `grok_cli`, `cursor_agent`. |
+| `MODEL_PROXY_BACKEND` | `claude_code` | Default provider used when no active model file exists. Available providers: `claude_code`, `openai_codex_cli`, `gemini_cli`, `antigravity_cli`, `grok_cli`, `cursor_agent`. |
 | `MODEL_PROXY_ENABLED_PROVIDERS` | unset | Optional comma-separated allow list of provider IDs. When unset, all built-in providers are enabled. |
 | `MODEL_PROXY_PROVIDER_ID` | `claude_code_cli_proxy` | Codex provider label returned by control tools. |
 | `MODEL_PROXY_DISPLAY_NAME` | `Model Proxy` | Display name for the stable Codex-facing model. |
@@ -423,7 +416,7 @@ http://127.0.0.1:8000
 | `MODEL_PROXY_DEFAULT_MODEL` | unset | Optional default route or alias used when no active model file is present. Examples: `opus`, `openai:gpt-5.5`, `gemini`, `antigravity`, `grok`, `cursor`. |
 | `MODEL_PROXY_ACTIVE_MODEL_FILE` | `~/.codex/model-proxy-active-model` | Generic active backend model file. |
 | `CLAUDE_MODELS` | `fable,opus,sonnet,haiku,claude-fable-5,claude-opus-4-8,claude-sonnet-5,claude-haiku-4-5,claude-haiku-4-5-20251001` | Claude backend models. Leave unset unless your Claude CLI exposes a different catalog. |
-| `OPENAI_MODELS` | `gpt-5.5,gpt-5.4-mini,gpt-5.3-codex-spark` | OpenAI backend models. Available API models are account-dependent, so override this for your key when needed. |
+| `OPENAI_CODEX_MODELS` | `gpt-5.5,gpt-5.4-mini,gpt-5.3-codex-spark` | OpenAI Codex CLI backend models. |
 | `GEMINI_MODELS` | `gemini-3-pro,gemini-2.5-pro,gemini-2.5-flash` | Gemini backend models. Override this if your Gemini CLI account supports a different set. |
 | `ANTIGRAVITY_MODELS` | `gemini-3.5-flash-medium,gemini-3.5-flash-high,gemini-3.5-flash-low,gemini-3.1-pro-high,gemini-3.1-pro-low,claude-sonnet-4.6-thinking,claude-opus-4.6-thinking,gpt-oss-120b-medium` | Antigravity backend models. Override if your Antigravity account exposes different slugs. |
 | `GROK_MODELS` | `grok-4.5` | Grok backend models. |
@@ -434,10 +427,14 @@ http://127.0.0.1:8000
 | `CLAUDE_PERMISSION_MODE` | `dontAsk` | Permission mode passed to Claude CLI. |
 | `CLAUDE_CWD` | server process cwd | Working directory for Claude CLI subprocesses. |
 | `CLAUDE_DEFAULT_MODEL` | `opus` | Backward-compatible default model override for the Claude backend. |
-| `OPENAI_API_KEY` | unset | API key used by OpenAI backend routes. |
-| `MODEL_PROXY_OPENAI_API_KEY` | unset | Alternate API key env var for OpenAI backend routes. |
-| `OPENAI_BASE_URL` | `https://api.openai.com/v1` | Upstream OpenAI-compatible Responses API base URL. |
-| `OPENAI_TIMEOUT_SECONDS` | `300` | Request timeout for OpenAI backend routes. |
+| `OPENAI_CODEX_COMMAND` | `codex` | Codex CLI command used for OpenAI backend routes. |
+| `OPENAI_CODEX_TIMEOUT_SECONDS` | `300` | Subprocess timeout for each Codex CLI request. |
+| `OPENAI_CODEX_CWD` | system temp directory | Working directory for Codex CLI subprocesses. Defaults away from your repo so the nested Codex run is only a model backend. |
+| `OPENAI_CODEX_SANDBOX` | `read-only` | Sandbox passed to `codex exec`. |
+| `OPENAI_CODEX_IGNORE_USER_CONFIG` | `1` | Adds `--ignore-user-config` so the nested Codex CLI does not recurse back into this proxy provider. |
+| `OPENAI_CODEX_EPHEMERAL` | `1` | Adds `--ephemeral` to avoid saving nested Codex sessions. |
+| `OPENAI_CODEX_SKIP_GIT_REPO_CHECK` | `1` | Adds `--skip-git-repo-check` because the backend cwd is intentionally a temp directory. |
+| `OPENAI_CODEX_EXTRA_ARGS` | unset | Extra arguments appended before `--model` for advanced Codex CLI testing. |
 | `GEMINI_COMMAND` | `gemini` | Gemini CLI command to execute for Gemini backend routes. |
 | `GEMINI_TIMEOUT_SECONDS` | `300` | Subprocess timeout for each Gemini request. |
 | `GEMINI_CWD` | server process cwd | Working directory for Gemini CLI subprocesses. |
@@ -642,7 +639,7 @@ If it is changed to Extra High, the proxy should invoke:
 --effort xhigh
 ```
 
-OpenAI routes receive `reasoning.effort` for `low`, `medium`, and `high`; `xhigh` and `max` are clamped to `high`. Gemini CLI routes currently ignore the effort value because the local CLI does not expose an equivalent stable flag.
+OpenAI/Codex CLI routes pass supported reasoning effort values to `codex exec` with `-c model_reasoning_effort="..."`. Gemini CLI routes currently ignore the effort value because the local CLI does not expose an equivalent stable flag.
 
 ## MCP Control Server Reference
 
@@ -734,18 +731,22 @@ The prompt is sent through stdin. The proxy expects Claude to return JSON events
 
 `--tools ""` keeps Claude Code's own filesystem and shell tools disabled so Codex remains the only tool runner.
 
-## OpenAI Backend Details
+## OpenAI Codex CLI Backend Details
 
-For each OpenAI route, the backend sends a normal upstream Responses API request:
+For each OpenAI route, the backend runs a nested, non-persistent Codex CLI request:
 
-```text
-POST $OPENAI_BASE_URL/responses
-Authorization: Bearer $OPENAI_API_KEY
+```bash
+codex exec \
+  --ignore-user-config \
+  --ephemeral \
+  --skip-git-repo-check \
+  --sandbox read-only \
+  --model "<resolved-backend-model>" \
+  --output-last-message "<temp-file>" \
+  "<built proxy prompt>"
 ```
 
-The proxy sends the built prompt as string `input`, uses the resolved backend model such as `gpt-5.5`, and returns the upstream `output_text` through the local Codex-compatible Responses object.
-
-OpenAI routes require `OPENAI_API_KEY` or `MODEL_PROXY_OPENAI_API_KEY` in the proxy process environment. They do not automatically reuse the Codex app's ChatGPT login.
+`--ignore-user-config` is intentional. Your main Codex app points at this proxy, so the nested Codex CLI must not load that same provider config or it could call back into the proxy recursively. Codex CLI auth still comes from your normal local Codex login.
 
 ## Gemini CLI Backend Details
 
@@ -809,13 +810,12 @@ The key validation is that Codex asks for and runs tools itself, rather than the
 
 ## Known Limitations
 
-- Model lists use built-in static catalogs and optional overrides through `CLAUDE_MODELS`, `OPENAI_MODELS`, `GEMINI_MODELS`, `ANTIGRAVITY_MODELS`, `GROK_MODELS`, and `CURSOR_MODELS`. The proxy does not run model-discovery commands on startup.
+- Model lists use built-in static catalogs and optional overrides through `CLAUDE_MODELS`, `OPENAI_CODEX_MODELS`, `GEMINI_MODELS`, `ANTIGRAVITY_MODELS`, `GROK_MODELS`, and `CURSOR_MODELS`. The proxy does not run model-discovery commands on startup.
 - The proxy process must be running before Codex can fetch proxy model metadata.
 - Session continuity is in memory only. Restarting the proxy clears `previous_response_id` history.
 - Streaming is compatibility streaming, not true token-by-token streaming from the backend.
 - The tool-call adapter supports one function call at a time.
-- CLI behavior may change across versions, so `claude --print --output-format json`, `gemini -p "test" --output-format json`, `agy --print "test" --model gemini-3.5-flash-medium --print-timeout 30s`, `grok --single "test" --output-format json --model grok-4.5`, and `cursor-agent --print --output-format json --trust --model auto "test"` should be included in smoke testing after upgrades.
-- OpenAI routes require an API key in the proxy environment; the proxy does not borrow Codex app credentials.
+- CLI behavior may change across versions, so `claude --print --output-format json`, `codex exec --ignore-user-config --ephemeral --skip-git-repo-check --sandbox read-only --model gpt-5.5 "test"`, `gemini -p "test" --output-format json`, `agy --print "test" --model gemini-3.5-flash-medium --print-timeout 30s`, `grok --single "test" --output-format json --model grok-4.5`, and `cursor-agent --print --output-format json --trust --model auto "test"` should be included in smoke testing after upgrades.
 - This is local development software, not a hosted multi-user service.
 
 ## Troubleshooting
@@ -856,15 +856,19 @@ Increase:
 export CLAUDE_TIMEOUT_SECONDS=600
 ```
 
-### `OPENAI_API_KEY is required`
+### `Codex CLI command not found`
 
-Set an OpenAI API key in the shell or LaunchAgent that starts the proxy:
+Check:
 
 ```bash
-export OPENAI_API_KEY="sk-..."
+which codex
 ```
 
-Then restart the proxy.
+If needed, set:
+
+```bash
+export OPENAI_CODEX_COMMAND=/absolute/path/to/codex
+```
 
 ### `Gemini CLI command not found`
 
