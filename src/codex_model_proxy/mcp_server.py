@@ -15,8 +15,9 @@ INSTRUCTIONS = (
     "Use this server to inspect and control the local model proxy. "
     "The `switch_model` tool changes the backend model used for the next request "
     "behind the stable Codex-facing model; it does not change Codex's configured provider. "
-    "Use qualified routes like `claude:opus`, `openai:gpt-5.5`, or `gemini:gemini-3-pro`, "
-    "or aliases such as `opus`, `gpt`, and `gemini`. "
+    "Use qualified routes like `claude:opus`, `openai:gpt-5.5`, `gemini:gemini-3-pro`, "
+    "`antigravity:gemini-3-pro`, `grok:grok-4.5`, or `cursor:auto`, "
+    "or aliases such as `opus`, `gpt`, `gemini`, `antigravity`, `grok`, and `cursor`. "
     "Set MODEL_PROXY_AUTOSTART=1 to start the HTTP proxy automatically when this MCP server starts."
 )
 
@@ -199,7 +200,7 @@ def tool_definitions() -> list[dict[str, Any]]:
                 "properties": {
                     "model": {
                         "type": "string",
-                        "description": "Backend model route or alias to use next, such as opus, sonnet, openai:gpt-5.5, gpt, gemini:gemini-3-pro, or gemini.",
+                        "description": "Backend model route or alias to use next, such as opus, sonnet, openai:gpt-5.5, gpt, gemini, antigravity, grok, or cursor.",
                     }
                 },
                 "required": ["model"],
@@ -214,7 +215,7 @@ def tool_definitions() -> list[dict[str, Any]]:
                 "properties": {
                     "provider": {
                         "type": "string",
-                        "description": "Provider alias to use next, such as claude, openai, gpt, or gemini.",
+                        "description": "Provider alias to use next, such as claude, openai, gpt, gemini, antigravity, grok, or cursor.",
                     }
                 },
                 "required": ["provider"],

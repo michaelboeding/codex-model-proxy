@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
+from .antigravity_cli import AntigravityCliClient
 from .claude_cli import ClaudeCliClient
+from .cursor_agent import CursorAgentClient
 from .errors import ModelBackendError
 from .gemini_cli import GeminiCliClient
+from .grok_cli import GrokCliClient
 from .openai_responses import OpenAIResponsesClient
 from .providers.registry import ProviderRegistry
 
@@ -39,6 +42,9 @@ class RoutedModelClient:
             "claude_code": ClaudeCliClient(),
             "openai_responses": OpenAIResponsesClient(),
             "gemini_cli": GeminiCliClient(),
+            "antigravity_cli": AntigravityCliClient(),
+            "grok_cli": GrokCliClient(),
+            "cursor_agent": CursorAgentClient(),
         }
 
     def complete(

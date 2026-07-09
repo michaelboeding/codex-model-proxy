@@ -85,6 +85,9 @@ def test_models_returns_openai_and_codex_shapes() -> None:
     assert body["models"][0]["service_tiers"][0]["id"] == "priority"
     assert "openai:gpt-5.5" in [item["id"] for item in body["data"]]
     assert "gemini:gemini-3-pro" in [item["id"] for item in body["data"]]
+    assert "antigravity:gemini-3-pro" in [item["id"] for item in body["data"]]
+    assert "grok:grok-4.5" in [item["id"] for item in body["data"]]
+    assert "cursor:auto" in [item["id"] for item in body["data"]]
 
 
 def test_text_response() -> None:
@@ -146,6 +149,48 @@ def test_gemini_alias_routes_to_gemini_backend() -> None:
     assert response.status_code == 200
     assert fake.models == ["gemini:gemini-3-pro"]
     assert response.json()["model"] == "gemini:gemini-3-pro"
+
+
+def test_antigravity_alias_routes_to_antigravity_backend() -> None:
+    fake = install_fake_service(["Antigravity route worked."])
+
+    response = client().post(
+        "/v1/responses",
+        headers=auth_headers(),
+        json={"model": "antigravity", "input": "Use Antigravity."},
+    )
+
+    assert response.status_code == 200
+    assert fake.models == ["antigravity:gemini-3-pro"]
+    assert response.json()["model"] == "antigravity:gemini-3-pro"
+
+
+def test_grok_alias_routes_to_grok_backend() -> None:
+    fake = install_fake_service(["Grok route worked."])
+
+    response = client().post(
+        "/v1/responses",
+        headers=auth_headers(),
+        json={"model": "grok", "input": "Use Grok."},
+    )
+
+    assert response.status_code == 200
+    assert fake.models == ["grok:grok-4.5"]
+    assert response.json()["model"] == "grok:grok-4.5"
+
+
+def test_cursor_alias_routes_to_cursor_backend() -> None:
+    fake = install_fake_service(["Cursor route worked."])
+
+    response = client().post(
+        "/v1/responses",
+        headers=auth_headers(),
+        json={"model": "cursor", "input": "Use Cursor."},
+    )
+
+    assert response.status_code == 200
+    assert fake.models == ["cursor:auto"]
+    assert response.json()["model"] == "cursor:auto"
 
 
 def test_stable_claude_model_uses_active_model_store(tmp_path: Path) -> None:

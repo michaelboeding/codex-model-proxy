@@ -4,8 +4,11 @@ import os
 from collections.abc import Callable
 
 from .base import ModelRoute, ProviderSpec
+from .antigravity_cli import AntigravityCliProviderFactory
 from .claude_code import ClaudeCodeProviderFactory
+from .cursor_agent import CursorAgentProviderFactory
 from .gemini_cli import GeminiCliProviderFactory
+from .grok_cli import GrokCliProviderFactory
 from .openai_responses import OpenAIResponsesProviderFactory
 
 
@@ -15,6 +18,9 @@ class ProviderRegistry:
             ClaudeCodeProviderFactory.backend_id: ClaudeCodeProviderFactory().from_env,
             OpenAIResponsesProviderFactory.backend_id: OpenAIResponsesProviderFactory().from_env,
             GeminiCliProviderFactory.backend_id: GeminiCliProviderFactory().from_env,
+            AntigravityCliProviderFactory.backend_id: AntigravityCliProviderFactory().from_env,
+            GrokCliProviderFactory.backend_id: GrokCliProviderFactory().from_env,
+            CursorAgentProviderFactory.backend_id: CursorAgentProviderFactory().from_env,
         }
         self.stable_model = os.getenv("MODEL_PROXY_STABLE_MODEL", os.getenv("CLAUDE_STABLE_MODEL", "claude"))
         self.codex_provider_id = os.getenv("MODEL_PROXY_PROVIDER_ID", "claude_code_cli_proxy")
