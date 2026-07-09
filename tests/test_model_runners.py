@@ -121,25 +121,26 @@ def test_cursor_build_args_uses_print_json_model() -> None:
         "--print",
         "--output-format",
         "json",
+        "--trust",
         "--model",
         "auto",
         "hello",
     ]
 
 
-def test_antigravity_build_args_uses_configurable_headless_json_shape() -> None:
-    client = AntigravityCliClient(command="antigravity", cwd=".", timeout_seconds=1)
+def test_antigravity_build_args_uses_agy_print_mode() -> None:
+    client = AntigravityCliClient(command="agy", cwd=".", timeout_seconds=1)
 
-    args = client._build_args("hello", "gemini-3-pro")
+    args = client._build_args("hello", "gemini-3.5-flash-medium")
 
     assert args == [
-        "antigravity",
-        "--model",
-        "gemini-3-pro",
-        "--output-format",
-        "json",
-        "--prompt",
+        "agy",
+        "--print",
         "hello",
+        "--model",
+        "gemini-3.5-flash-medium",
+        "--print-timeout",
+        "5m",
     ]
 
 

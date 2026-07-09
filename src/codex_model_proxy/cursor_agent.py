@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import tempfile
 from pathlib import Path
 
 from .errors import ModelBackendError
@@ -27,9 +28,9 @@ class CursorAgentClient(HeadlessCliClient):
             args_template=args_template
             or os.getenv(
                 "CURSOR_ARGS_TEMPLATE",
-                "--print --output-format json --model {model} {prompt}",
+                "--print --output-format json --trust --model {model} {prompt}",
             ),
-            cwd=cwd or os.getenv("CURSOR_CWD", os.getcwd()),
+            cwd=cwd or os.getenv("CURSOR_CWD", tempfile.gettempdir()),
             timeout_seconds=timeout_seconds or int(os.getenv("CURSOR_TIMEOUT_SECONDS", "300")),
             error_type=CursorAgentError,
         )

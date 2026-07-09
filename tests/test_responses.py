@@ -85,7 +85,7 @@ def test_models_returns_openai_and_codex_shapes() -> None:
     assert body["models"][0]["service_tiers"][0]["id"] == "priority"
     assert "openai:gpt-5.5" in [item["id"] for item in body["data"]]
     assert "gemini:gemini-3-pro" in [item["id"] for item in body["data"]]
-    assert "antigravity:gemini-3-pro" in [item["id"] for item in body["data"]]
+    assert "antigravity:gemini-3.5-flash-medium" in [item["id"] for item in body["data"]]
     assert "grok:grok-4.5" in [item["id"] for item in body["data"]]
     assert "cursor:auto" in [item["id"] for item in body["data"]]
 
@@ -161,8 +161,8 @@ def test_antigravity_alias_routes_to_antigravity_backend() -> None:
     )
 
     assert response.status_code == 200
-    assert fake.models == ["antigravity:gemini-3-pro"]
-    assert response.json()["model"] == "antigravity:gemini-3-pro"
+    assert fake.models == ["antigravity:gemini-3.5-flash-medium"]
+    assert response.json()["model"] == "antigravity:gemini-3.5-flash-medium"
 
 
 def test_grok_alias_routes_to_grok_backend() -> None:

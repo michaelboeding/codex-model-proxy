@@ -268,7 +268,7 @@ def backend_command_for(backend_id: str) -> str | None:
     if backend_id == "gemini_cli":
         return os.getenv("GEMINI_COMMAND", "gemini")
     if backend_id == "antigravity_cli":
-        return os.getenv("ANTIGRAVITY_COMMAND", "antigravity")
+        return os.getenv("ANTIGRAVITY_COMMAND", "agy")
     if backend_id == "grok_cli":
         return os.getenv("GROK_COMMAND", "grok")
     if backend_id == "cursor_agent":

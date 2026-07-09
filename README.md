@@ -21,8 +21,8 @@ Codex still owns the coding workflow. It runs shell commands, edits files, asks 
 | Claude Code | `claude:opus` | `opus`, `sonnet`, `haiku`, `fable` | Local `claude` CLI | `claude auth login` |
 | OpenAI | `openai:gpt-5.5` | `gpt`, `openai`, `chatgpt`, `mini`, `spark` | OpenAI Responses API | `OPENAI_API_KEY` in the proxy environment |
 | Gemini CLI | `gemini:gemini-3-pro` | `gemini`, `gemini-pro`, `flash` | Local `gemini` CLI | Gemini CLI auth or API/Vertex credentials |
-| Antigravity | `antigravity:gemini-3-pro` | `antigravity`, `antigravity-pro`, `antigravity-flash` | Local `antigravity` CLI | Antigravity subscription login |
-| Grok | `grok:grok-4.5` | `grok`, `xai`, `grok-latest` | Local `grok` CLI | `grok login` |
+| Antigravity | `antigravity:gemini-3.5-flash-medium` | `antigravity`, `antigravity-pro`, `antigravity-flash` | Local `agy` CLI | Antigravity subscription login |
+| Grok | `grok:grok-4.5` | `grok`, `xai`, `grok-latest` | Local `grok` CLI | `grok login` plus credits/subscription |
 | Cursor | `cursor:auto` | `cursor`, `composer`, `cursor-opus`, `cursor-gpt` | Local `cursor-agent` CLI | `cursor-agent login` or `CURSOR_API_KEY` |
 
 The provider list is config-driven. You can override model lists with environment variables such as `CLAUDE_MODELS`, `GROK_MODELS`, or `CURSOR_MODELS`.
@@ -41,7 +41,7 @@ The proxy maps that stable Codex-facing model to the active backend route:
 ```text
 claude -> claude:opus
 claude -> openai:gpt-5.5
-claude -> antigravity:gemini-3-pro
+claude -> antigravity:gemini-3.5-flash-medium
 claude -> grok:grok-4.5
 claude -> cursor:auto
 ```
@@ -74,7 +74,7 @@ claude auth login
 grok login
 cursor-agent login
 gemini
-antigravity
+agy
 ```
 
 For OpenAI routes, put an API key in the environment used to start the proxy:
@@ -303,8 +303,8 @@ For Claude Code, terminal tools are disabled for proxy calls with `--tools ""`. 
 - For Claude routes: Claude Code CLI installed as `claude` and authenticated locally.
 - For OpenAI routes: `OPENAI_API_KEY` set in the proxy process environment.
 - For Gemini routes: Gemini CLI installed as `gemini` and authenticated locally, or configured with Gemini/Vertex credentials.
-- For Antigravity routes: Antigravity CLI installed as `antigravity` and authenticated locally with the subscription-backed login you want to use.
-- For Grok routes: Grok CLI installed as `grok` and authenticated locally.
+- For Antigravity routes: Antigravity CLI installed as `agy` and authenticated locally with the subscription-backed login you want to use.
+- For Grok routes: Grok CLI installed as `grok`, authenticated locally, and backed by credits or a subscription.
 - For Cursor routes: Cursor Agent CLI installed as `cursor-agent` and authenticated locally, or `CURSOR_API_KEY` set where supported.
 - Codex configured to use a local Responses provider.
 
@@ -340,14 +340,14 @@ gemini -p "auth test" --output-format json
 Check Antigravity auth:
 
 ```bash
-antigravity
-antigravity --model gemini-3-pro --output-format json --prompt "auth test"
+agy
+agy --print "auth test" --model gemini-3.5-flash-medium --print-timeout 30s
 ```
 
 If your Antigravity CLI uses different flags, keep the provider and override the invocation:
 
 ```bash
-export ANTIGRAVITY_ARGS_TEMPLATE="-p {prompt} --model {model} --output-format json"
+export ANTIGRAVITY_ARGS_TEMPLATE="--print {prompt} --model {model} --print-timeout 5m"
 ```
 
 Check Grok auth:
@@ -363,7 +363,7 @@ Check Cursor auth:
 ```bash
 cursor-agent login
 cursor-agent status
-cursor-agent --print --output-format json --model auto "auth test"
+cursor-agent --print --output-format json --trust --model auto "auth test"
 ```
 
 ## Install
@@ -414,7 +414,7 @@ http://127.0.0.1:8000
 | `CLAUDE_MODELS` | `fable,opus,sonnet,haiku,claude-fable-5,claude-opus-4-8,claude-sonnet-5,claude-haiku-4-5,claude-haiku-4-5-20251001` | Claude backend models. |
 | `OPENAI_MODELS` | `gpt-5.5,gpt-5.4-mini,gpt-5.3-codex-spark` | OpenAI backend models. |
 | `GEMINI_MODELS` | `gemini-3-pro,gemini-2.5-pro,gemini-2.5-flash` | Gemini backend models. |
-| `ANTIGRAVITY_MODELS` | `gemini-3-pro,gemini-3-flash,gemini-3-1-pro` | Antigravity backend models. Override if your Antigravity account exposes different slugs. |
+| `ANTIGRAVITY_MODELS` | `gemini-3.5-flash-medium,gemini-3.5-flash-high,gemini-3.5-flash-low,gemini-3.1-pro-high,gemini-3.1-pro-low,claude-sonnet-4.6-thinking,claude-opus-4.6-thinking,gpt-oss-120b-medium` | Antigravity backend models. Override if your Antigravity account exposes different slugs. |
 | `GROK_MODELS` | `grok-4.5` | Grok backend models. |
 | `CURSOR_MODELS` | `auto,composer-2.5,grok-4.5,claude-opus-4-8,claude-sonnet-5,gpt-5.5,gemini-3-1-pro` | Cursor backend models. |
 | `CLAUDE_COMMAND` | `claude` | Claude Code CLI command to execute for the current backend. |
@@ -432,18 +432,18 @@ http://127.0.0.1:8000
 | `GEMINI_CWD` | server process cwd | Working directory for Gemini CLI subprocesses. |
 | `GEMINI_APPROVAL_MODE` | `default` | Approval mode passed to Gemini CLI. Keep `default` unless you intentionally want Gemini CLI tools enabled. |
 | `GEMINI_EXTENSIONS` | `none` | Extensions passed to Gemini CLI. Defaults to `none` to keep the backend quiet and Codex-centered. |
-| `ANTIGRAVITY_COMMAND` | `antigravity` | Antigravity CLI command to execute for Antigravity backend routes. |
+| `ANTIGRAVITY_COMMAND` | `agy` | Antigravity CLI command to execute for Antigravity backend routes. |
 | `ANTIGRAVITY_TIMEOUT_SECONDS` | `300` | Subprocess timeout for each Antigravity request. |
 | `ANTIGRAVITY_CWD` | server process cwd | Working directory for Antigravity CLI subprocesses. |
-| `ANTIGRAVITY_ARGS_TEMPLATE` | `--model {model} --output-format json --prompt {prompt}` | Argument template for Antigravity headless calls. Override this if the installed CLI uses a different headless syntax. |
+| `ANTIGRAVITY_ARGS_TEMPLATE` | `--print {prompt} --model {model} --print-timeout 5m` | Argument template for Antigravity headless calls. Override this if the installed CLI uses a different headless syntax. |
 | `GROK_COMMAND` | `grok` | Grok CLI command to execute for Grok backend routes. |
 | `GROK_TIMEOUT_SECONDS` | `300` | Subprocess timeout for each Grok request. |
 | `GROK_CWD` | server process cwd | Working directory for Grok CLI subprocesses. |
 | `GROK_ARGS_TEMPLATE` | `--single {prompt} --model {model} --output-format json --max-turns 1 --disable-web-search --no-subagents --permission-mode default --no-memory --verbatim` | Argument template for Grok headless calls. |
 | `CURSOR_COMMAND` | `cursor-agent` | Cursor Agent CLI command to execute for Cursor backend routes. |
 | `CURSOR_TIMEOUT_SECONDS` | `300` | Subprocess timeout for each Cursor request. |
-| `CURSOR_CWD` | server process cwd | Working directory for Cursor Agent subprocesses. |
-| `CURSOR_ARGS_TEMPLATE` | `--print --output-format json --model {model} {prompt}` | Argument template for Cursor Agent headless calls. |
+| `CURSOR_CWD` | system temp directory | Working directory for Cursor Agent subprocesses. Defaults away from your repo so Cursor is only a model backend, not the primary workspace actor. |
+| `CURSOR_ARGS_TEMPLATE` | `--print --output-format json --trust --model {model} {prompt}` | Argument template for Cursor Agent headless calls. Uses `--trust` for non-interactive mode; avoids `-f`/`--yolo`. |
 | `RESPONSE_TTL_SECONDS` | `3600` | In-memory response/session retention. |
 | `MODEL_PROXY_BASE_URL` | `http://127.0.0.1:8000` | Proxy base URL used by the CLI/MCP control tools. |
 | `MODEL_PROXY_API_KEY` | `local-dev-key` | Bearer token used by the CLI/MCP control tools. |
@@ -599,7 +599,7 @@ opus -> claude:opus
 sonnet -> claude:sonnet
 gpt -> openai:gpt-5.5
 gemini -> gemini:gemini-3-pro
-antigravity -> antigravity:gemini-3-pro
+antigravity -> antigravity:gemini-3.5-flash-medium
 grok -> grok:grok-4.5
 cursor -> cursor:auto
 ```
@@ -803,7 +803,7 @@ The key validation is that Codex asks for and runs tools itself, rather than the
 - Session continuity is in memory only. Restarting the proxy clears `previous_response_id` history.
 - Streaming is compatibility streaming, not true token-by-token streaming from the backend.
 - The tool-call adapter supports one function call at a time.
-- CLI behavior may change across versions, so `claude --print --output-format json`, `gemini -p "test" --output-format json`, `antigravity --model gemini-3-pro --output-format json --prompt "test"`, `grok --single "test" --output-format json --model grok-4.5`, and `cursor-agent --print --output-format json --model auto "test"` should be included in smoke testing after upgrades.
+- CLI behavior may change across versions, so `claude --print --output-format json`, `gemini -p "test" --output-format json`, `agy --print "test" --model gemini-3.5-flash-medium --print-timeout 30s`, `grok --single "test" --output-format json --model grok-4.5`, and `cursor-agent --print --output-format json --trust --model auto "test"` should be included in smoke testing after upgrades.
 - OpenAI routes require an API key in the proxy environment; the proxy does not borrow Codex app credentials.
 - This is local development software, not a hosted multi-user service.
 
@@ -874,19 +874,19 @@ export GEMINI_COMMAND=/absolute/path/to/gemini
 Check:
 
 ```bash
-which antigravity
+which agy
 ```
 
 If needed, set:
 
 ```bash
-export ANTIGRAVITY_COMMAND=/absolute/path/to/antigravity
+export ANTIGRAVITY_COMMAND=/absolute/path/to/agy
 ```
 
 If your Antigravity CLI has a different headless syntax, override the argument template:
 
 ```bash
-export ANTIGRAVITY_ARGS_TEMPLATE="-p {prompt} --model {model} --output-format json"
+export ANTIGRAVITY_ARGS_TEMPLATE="--print {prompt} --model {model} --print-timeout 5m"
 ```
 
 ### `Grok CLI command not found`

@@ -5,12 +5,17 @@ import os
 from .base import ProviderModel, ProviderSpec
 
 
-DEFAULT_ANTIGRAVITY_MODEL = "gemini-3-pro"
+DEFAULT_ANTIGRAVITY_MODEL = "gemini-3.5-flash-medium"
 DEFAULT_ANTIGRAVITY_MODELS = ",".join(
     [
-        "gemini-3-pro",
-        "gemini-3-flash",
-        "gemini-3-1-pro",
+        "gemini-3.5-flash-medium",
+        "gemini-3.5-flash-high",
+        "gemini-3.5-flash-low",
+        "gemini-3.1-pro-high",
+        "gemini-3.1-pro-low",
+        "claude-sonnet-4.6-thinking",
+        "claude-opus-4.6-thinking",
+        "gpt-oss-120b-medium",
     ]
 )
 
@@ -52,8 +57,13 @@ class AntigravityCliProviderFactory:
     @staticmethod
     def _aliases_for(name: str) -> tuple[str, ...]:
         aliases: dict[str, tuple[str, ...]] = {
-            "gemini-3-pro": ("antigravity-gemini", "antigravity-pro"),
-            "gemini-3-flash": ("antigravity-flash",),
-            "gemini-3-1-pro": ("antigravity-gemini-3-1",),
+            "gemini-3.5-flash-medium": ("antigravity-gemini", "antigravity-flash", "antigravity-medium"),
+            "gemini-3.5-flash-high": ("antigravity-high",),
+            "gemini-3.5-flash-low": ("antigravity-low",),
+            "gemini-3.1-pro-high": ("antigravity-pro", "antigravity-gemini-pro"),
+            "gemini-3.1-pro-low": ("antigravity-pro-low",),
+            "claude-sonnet-4.6-thinking": ("antigravity-sonnet",),
+            "claude-opus-4.6-thinking": ("antigravity-opus",),
+            "gpt-oss-120b-medium": ("antigravity-gpt-oss",),
         }
         return aliases.get(name, ())

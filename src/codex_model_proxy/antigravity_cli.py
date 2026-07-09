@@ -23,11 +23,11 @@ class AntigravityCliClient(HeadlessCliClient):
     ) -> None:
         super().__init__(
             label="Antigravity CLI",
-            command=command or os.getenv("ANTIGRAVITY_COMMAND", "antigravity"),
+            command=command or os.getenv("ANTIGRAVITY_COMMAND", "agy"),
             args_template=args_template
             or os.getenv(
                 "ANTIGRAVITY_ARGS_TEMPLATE",
-                "--model {model} --output-format json --prompt {prompt}",
+                "--print {prompt} --model {model} --print-timeout 5m",
             ),
             cwd=cwd or os.getenv("ANTIGRAVITY_CWD", os.getcwd()),
             timeout_seconds=timeout_seconds or int(os.getenv("ANTIGRAVITY_TIMEOUT_SECONDS", "300")),

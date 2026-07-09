@@ -16,7 +16,7 @@ INSTRUCTIONS = (
     "The `switch_model` tool changes the backend model used for the next request "
     "behind the stable Codex-facing model; it does not change Codex's configured provider. "
     "Use qualified routes like `claude:opus`, `openai:gpt-5.5`, `gemini:gemini-3-pro`, "
-    "`antigravity:gemini-3-pro`, `grok:grok-4.5`, or `cursor:auto`, "
+    "`antigravity:gemini-3.5-flash-medium`, `grok:grok-4.5`, or `cursor:auto`, "
     "or aliases such as `opus`, `gpt`, `gemini`, `antigravity`, `grok`, and `cursor`. "
     "Set MODEL_PROXY_AUTOSTART=1 to start the HTTP proxy automatically when this MCP server starts."
 )
